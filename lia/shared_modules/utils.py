@@ -17,13 +17,16 @@
 
 from pathlib import Path
 from typing import List, Tuple
+from copy import deepcopy
+import gc
 
 import cv2 as cv
 import dask
 import numpy as np
 import tifffile as tif
+from skimage.transform import AffineTransform, warp
 
-from .dtype_aliases import Image
+from .dtype_aliases import Image, Shape2D, TMat
 
 
 def path_to_str(path: Path) -> str:
@@ -72,6 +75,25 @@ def read_and_max_project_pages(img_path: Path, tiff_pages: List[int]) -> Image:
             max_proj = np.maximum(max_proj, tif.imread(path_to_str(img_path), key=p))
     max_proj = cv.normalize(max_proj, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U)
     return max_proj
+
+
+def transform_img_with_tmat(
+    img: Image, target_shape: Shape2D, transform_matrix: TMat
+) -> Image:
+    original_dtype = deepcopy(img.dtype)
+    img, _ = pad_to_shape(img, target_shape)
+    gc.collect()
+    identity_matrix = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    if not np.array_equal(transform_matrix, identity_matrix):
+        transform_matrix_3x3 = np.append(transform_matrix, [[0, 0, 1]], axis=0)
+        # Using partial inverse to handle singular matrices
+        inv_matrix = np.linalg.pinv(transform_matrix_3x3)
+        AT = AffineTransform(inv_matrix)
+        img = warp(img, AT, output_shape=img.shape, preserve_range=True).astype(
+            original_dtype
+        )
+        gc.collect()
+    return img
 
 
 def set_number_of_dask_workers(n_workers: int):

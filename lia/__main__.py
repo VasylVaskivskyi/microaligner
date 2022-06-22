@@ -17,8 +17,6 @@
 
 import argparse
 import gc
-import json
-from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from datetime import datetime
@@ -28,7 +26,6 @@ import numpy as np
 import pandas as pd
 import tifffile as tif
 import yaml
-from skimage.transform import AffineTransform, warp
 
 from .feature_reg import FeatureRegistrator
 from .optflow_reg import OptFlowRegistrator, Warper
@@ -37,6 +34,7 @@ from .shared_modules.img_checks import check_number_of_input_img_paths
 from .shared_modules.metadata_handling import DatasetStructure
 from .shared_modules.utils import (pad_to_shape, path_to_str,
                                    read_and_max_project_pages,
+                                   transform_img_with_tmat,
                                    set_number_of_dask_workers)
 from .shared_modules.config_schema_container import config_schema
 
@@ -144,25 +142,6 @@ def transform_and_save_freg_imgs(
         TF.close()
     TW.close()
     return
-
-
-def transform_img_with_tmat(
-    img: Image, target_shape: Shape2D, transform_matrix: TMat
-) -> Image:
-    original_dtype = deepcopy(img.dtype)
-    img, _ = pad_to_shape(img, target_shape)
-    gc.collect()
-    identity_matrix = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
-    if not np.array_equal(transform_matrix, identity_matrix):
-        transform_matrix_3x3 = np.append(transform_matrix, [[0, 0, 1]], axis=0)
-        # Using partial inverse to handle singular matrices
-        inv_matrix = np.linalg.pinv(transform_matrix_3x3)
-        AT = AffineTransform(inv_matrix)
-        img = warp(img, AT, output_shape=img.shape, preserve_range=True).astype(
-            original_dtype
-        )
-        gc.collect()
-    return img
 
 
 def get_target_shape(img_paths: List[Path]) -> Shape2D:
@@ -323,31 +302,30 @@ def validate_config(config_path: Path):
     if not config_path.exists():
         msg = "Registration config file is not found"
         raise FileNotFoundError(msg)
-    with open(config_path, "r") as s:
-        config = yaml.safe_load(s)
+    config = read_yaml(config_path)
     jsonschema.validate(config, config_schema)
-    img_not_exist = []
+    missing_imgs = []
     for img_path in config["ImagePaths"]:
         if not Path(img_path).exists():
-            img_not_exist.append(img_path)
-    if img_not_exist != []:
-        msg = f"These input images are not found: {img_not_exist}"
+            missing_imgs.append(img_path)
+    if missing_imgs != []:
+        msg = f"These input images are not found: {missing_imgs}"
         raise FileNotFoundError(msg)
     check_number_of_input_img_paths(config["ImagePaths"], config["IsStack"])
     return
 
 
-def parse_config(config_path: Path) -> dict:
-    with open(config_path, "r", encoding="utf-8") as s:
-        config = yaml.safe_load(s)
-    return config
+def read_yaml(path: Path) -> dict:
+    with open(path, "r", encoding="utf-8") as s:
+        yaml_file = yaml.safe_load(s)
+    return yaml_file
 
 
 def main():
     print("Started")
     config_path = parse_cmd_args()
     validate_config(config_path)
-    config = parse_config(config_path)
+    config = read_yaml(config_path)
 
     img_paths = [Path(p) for p in config["ImagePaths"]]
     is_stack = config["IsStack"]

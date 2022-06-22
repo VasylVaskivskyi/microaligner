@@ -16,5 +16,5 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from .feature_reg import FeatureRegistrator
-from .optflow_reg import OptFlowRegistrator
-from .shared_modules.utils import pad_to_shape
+from .optflow_reg import OptFlowRegistrator, Warper
+from .shared_modules.utils import pad_to_shape, transform_img_with_tmat

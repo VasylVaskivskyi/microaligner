@@ -1,0 +1,40 @@
+# List of images each having same number of channels in the same order
+# If your input image is a stack that contains all the cycles
+# Write it ImagePaths: ["img_path"]
+ImagePaths:
+  - "img_path"
+  - "img_path"
+IsStack: false
+OutputDir: "/path/to/out/registered_imgs"
+#TODO add option to save as separate imgs
+
+# ReferenceImage e.g. if your images are 1.tif 2.tif 3.tif,
+# and you reference image is 1.tif, then ReferenceImage: 0"
+# Ids start from 0
+# Alternatively if your images are in a stack ReferenceImage would mean
+# which round of imaging in stack to use
+ReferenceImage: 0
+# Channel to use for alignment, has to be present in all rounds.
+ReferenceChannel: "DAPI"
+
+
+#ReferenceCycleID: 0
+#ReferenceChannelIDPerCycle: 0
+#NumberChannelsPerCycle: 4
+#NumberZPlanesPerChannel: 1
+
+FeatureReg:
+  NumberPyramidLevels: 3
+  NumberIterationsPerLevel: 3
+  TileSize: 1000
+  Overlap: 100
+  NumberOfWorkers: 1
+
+OptFlowReg:
+  NumberPyramidLevels: 3
+  NumberIterationsPerLevel: 3
+  TileSize: 1000
+  Overlap: 100
+  NumberOfWorkers: 1
+
+# number of parallel processes to use for computation

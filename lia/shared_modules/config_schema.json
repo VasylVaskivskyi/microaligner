@@ -1,0 +1,82 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Parameters",
+    "definitions": {
+        "Parameters": {
+            "title": "Parameters",
+            "required": [
+                "ImagePaths",
+                "IsStack",
+                "OutputDir",
+                "ReferenceChannel",
+                "ReferenceImage",
+                "FeatureReg"
+            ],
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "ImagePaths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "IsStack": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "OutputDir": {
+                    "type": "string",
+                    "default": "./output"
+                },
+                "ReferenceImage": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "ReferenceChannel": {
+                    "type": "string"
+                },
+                "FeatureReg": {
+                    "$ref": "#/definitions/RegFields"
+                },
+                "OptFlowReg": {
+                    "$ref": "#/definitions/RegFields"
+                }
+            }
+        },
+        "RegFields": {
+            "title": "RegFields",
+            "type": "object",
+            "required": [
+                "NumberIterationsPerLevel",
+                "NumberOfWorkers",
+                "NumberPyramidLevels",
+                "Overlap",
+                "TileSize"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "NumberPyramidLevels": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "NumberIterationsPerLevel": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "TileSize": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "Overlap": {
+                    "type": "integer",
+                    "minimum": 10
+                },
+                "NumberOfWorkers": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        }
+    }
+}

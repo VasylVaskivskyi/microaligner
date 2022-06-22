@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Vaskivskyi"
+  given-names: "Vasyl"
+  orcid: "https://orcid.org/0000-0002-4080-4965"
+title: "LIA: Large Image Aligner for large microscopy images"
+version: 1.0.0
+date-released: 2022-05-11
+license: Apache-2.0
+url: "https://github.com/BayraktarLab/lia"
+doi: 10.5281/zenodo.5501908

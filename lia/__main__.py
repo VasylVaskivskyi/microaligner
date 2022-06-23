@@ -208,7 +208,12 @@ def do_feature_reg(
     return tmat_per_cycle, target_shape
 
 
-def warp_and_save_pages(TW, flow, in_path, meta, pages, warper):
+def warp_and_save_pages(TW: tif.TiffWriter,
+                        flow: Flow,
+                        in_path: Path,
+                        meta: str,
+                        pages: List[int],
+                        warper: Warper):
     for p in pages:
         warper.image = tif.imread(in_path, key=p)
         warper.flow = flow
@@ -221,7 +226,10 @@ def warp_and_save_pages(TW, flow, in_path, meta, pages, warper):
         )
 
 
-def save_pages(TW, in_path, meta, pages):
+def save_pages(TW: tif.TiffWriter,
+               in_path: Path,
+               meta: str,
+               pages: List[int]):
     for p in pages:
         TW.write(
             tif.imread(in_path, key=p),
@@ -271,6 +279,11 @@ def register_and_save_ofreg_imgs(
 
             ref_pages = list(this_cycle["img_structure"][ref_ch_id].values())
             ref_img = read_and_max_project_pages(in_path, ref_pages)
+
+            print(f"Saving image {cyc + 1}/{ncycles}")
+            for ch in this_cycle["img_structure"]:
+                pages = list(this_cycle["img_structure"][ch].values())
+                save_pages(TW, in_path, ome_meta, pages)
         else:
             mov_pages = list(this_cycle["img_structure"][ref_ch_id].values())
             mov_img = read_and_max_project_pages(in_path, mov_pages)

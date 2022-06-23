@@ -34,3 +34,6 @@ Flow = np.ndarray
 
 # array shape
 Shape2D = Tuple[int, int]
+
+# values used for padding (left, right, top, bottom)
+Padding = Tuple[int, int, int, int]

@@ -29,7 +29,7 @@ import yaml
 
 from .feature_reg import FeatureRegistrator
 from .optflow_reg import OptFlowRegistrator, Warper
-from .shared_modules.dtype_aliases import Image, Shape2D, TMat
+from .shared_modules.dtype_aliases import Image, Shape2D, TMat, Padding, Flow
 from .shared_modules.img_checks import check_number_of_input_img_paths
 from .shared_modules.metadata_handling import DatasetStructure
 from .shared_modules.utils import (pad_to_shape, path_to_str,
@@ -42,8 +42,8 @@ from .shared_modules.config_schema_container import config_schema
 def save_param(
     img_paths: List[Path],
     out_dir: Path,
-    tmat_per_cycle_flat: np.ndarray,
-    padding_per_cycle: List[Tuple[int, int, int, int]],
+    tmat_per_cycle_flat: List[TMat],
+    padding_per_cycle: List[Padding],
     image_shape: Shape2D,
 ):
     transform_table = pd.DataFrame(tmat_per_cycle_flat)
@@ -54,13 +54,14 @@ def save_param(
     cols = cols[-1:] + cols[:-1]
     transform_table = transform_table[cols]
     for i in range(0, len(padding_per_cycle)):
-        transform_table.loc[i, "left"] = padding_per_cycle[i][0]
-        transform_table.loc[i, "right"] = padding_per_cycle[i][1]
-        transform_table.loc[i, "top"] = padding_per_cycle[i][2]
-        transform_table.loc[i, "bottom"] = padding_per_cycle[i][3]
+        this_cycle_padding = padding_per_cycle[i]
+        transform_table.loc[i, "left"] = this_cycle_padding[0]
+        transform_table.loc[i, "right"] = this_cycle_padding[1]
+        transform_table.loc[i, "top"] = this_cycle_padding[2]
+        transform_table.loc[i, "bottom"] = this_cycle_padding[3]
         transform_table.loc[i, "width"] = image_shape[1]
         transform_table.loc[i, "height"] = image_shape[0]
-    transform_table.to_csv(out_dir / "registration_parameters.csv", index=False)
+    transform_table.to_csv(out_dir / "feature_reg_parameters.csv", index=False)
 
 
 def transform_and_save_zplanes(
@@ -165,7 +166,7 @@ def do_feature_reg(
     num_pyr_lvl: int,
     num_iter: int,
     tile_size: int,
-) -> Tuple[List[TMat], Shape2D]:
+) -> Tuple[List[TMat], Shape2D, List[Padding]]:
     img_paths = [dataset_structure[cyc]["img_path"] for cyc in dataset_structure]
     target_shape = get_target_shape(img_paths)
 
@@ -192,6 +193,7 @@ def do_feature_reg(
 
         if cyc == ref_cycle_id:
             tmat_per_cycle.append(identity_matrix)
+            padding.append((0, 0, 0, 0))
         else:
             mov_img_tiff_pages = list(img_structure[ref_channel_id].values())
             mov_img = read_and_max_project_pages(img_path, mov_img_tiff_pages)
@@ -205,7 +207,7 @@ def do_feature_reg(
 
             tmat_per_cycle.append(transform_matrix)
             gc.collect()
-    return tmat_per_cycle, target_shape
+    return tmat_per_cycle, target_shape, padding
 
 
 def warp_and_save_pages(TW: tif.TiffWriter,
@@ -358,7 +360,7 @@ def main():
     dataset_structure = struct.get_dataset_structure()
 
     print("Performing linear feature based image registration")
-    tmat_per_cycle, target_shape = do_feature_reg(
+    tmat_per_cycle, target_shape, padding_per_cycle = do_feature_reg(
         dataset_structure, ref_cycle_id, num_pyr_lvl, num_iter, tile_size
     )
     new_ome_meta = struct.generate_new_metadata(target_shape)
@@ -372,6 +374,9 @@ def main():
         new_ome_meta,
         is_stack,
     )
+    tmat_per_cycle_flat = [M.flatten() for M in tmat_per_cycle]
+    img_paths = [dataset_structure[cyc]["img_path"] for cyc in dataset_structure]
+    save_param(img_paths, out_dir, tmat_per_cycle_flat, padding_per_cycle, target_shape)
     print("Finished")
 
     if "OptFlowReg" in config:
@@ -404,35 +409,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-#
-# if load_param == "none":
-#        transform_matrices, target_shape, padding = estimate_registration_parameters(
-#            dataset_structure, ref_img_id, tile_size, num_pyr_lvl, num_iter
-#        )
-#
-#    else:
-#        reg_param = pd.read_csv(load_param)
-#        target_shape = (reg_param.loc[0, "height"], reg_param.loc[0, "width"])
-#
-#        transform_matrices = []
-#        padding = []
-#        for i in reg_param.index:
-#            matrix = (
-#                reg_param.loc[i, ["0", "1", "2", "3", "4", "5"]]
-#                .to_numpy()
-#                .reshape(2, 3)
-#                .astype(np.float32)
-#            )
-#            pad = reg_param.loc[i, ["left", "right", "top", "bottom"]].to_list()
-#            transform_matrices.append(matrix)
-#            padding.append(pad)
-#
-#    if not estimate_only:
-#        transform_imgs(
-#            dataset_structure, out_dir, target_shape, transform_matrices, is_stack
-#        )
-#
-#    transform_matrices_flat = [M.flatten() for M in transform_matrices]
-#    img_paths2 = [dataset_structure[cyc]["img_path"] for cyc in dataset_structure]
-#    save_param(img_paths2, out_dir, transform_matrices_flat, padding, target_shape)

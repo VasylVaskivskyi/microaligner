@@ -1,38 +1,48 @@
-[![DOI](https://zenodo.org/badge/405296622.svg)](https://zenodo.org/badge/latestdoi/405296622)
-## Optical flow based registration for immunofluorescence images
+## LIA: Large image aligner for microscopy images
 
-These scripts perform fine registration using warping. 
-A map for warping is calculated using Farneback optical flow algorithm, by OpenCV.
-Although images are MINMAX normalized during processing, optical flow algorithms expect images to have 
-similar pixel intensities. 
+It efficiently performs alignment (registration) of gigapixel size images.
+It is scalable - the more cores you have the faster it works.
+There are two main classes that can do alignment, and also a pipeline that can run both of them based 
+on parameters provided in a config file.
 
-Currently does not support z-stacks.
+Images with z-planes are projected along the z-plane before performing registration.
 
-### Command line arguments
-
-**`-i`**  path to image stack
-
-**`-c`**  name of reference channel
-
-**`-o`**  output directory
-
-**`-n`**  multiprocessing: number of processes, default 1
-
-####Optional
-
-**`--tile_size`**  size of a square tile, default 1000, which corresponds to 1000x1000px tile
-
-**`--overlap`**  overlap between tiles, default 100
-
-**`--num_pyr_lvl`**  number of pyramid levels. Default 3, 0 - will not use pyramids
-
-**`--num_iter`**  number of registration iterations per pyramid level. Default 3, cannot be less than 1
 
 ### Example usage
 
-**`python opt_flow_reg.py -i /path/to/iamge/stack/out.tif -c "DAPI" -o /path/to/output/dir/ -n 3`**
+#### As a module
 
+##### Feature based registration
+```python
+from lia import FeatureRegistrator, transform_img_with_tmat
+freg = FeatureRegistrator()
+freg.ref_img = img1
+freg.mov_img = img2
+transformation_matrix = freg.register()
+
+f_aligned_img2 = transform_img_with_tmat(img2, img2.shape, transformation_matrix)
+```
+
+##### Optical flow based registration
+```python
+from lia import OptFlowRegistrator, Warper 
+ofreg = OptFlowRegistrator()
+ofreg.ref_img = img1
+ofreg.mov_img = img2
+flow_map = ofreg.register()
+
+warper = Warper()
+warper.image = img2
+warper.flow = flow_map
+of_aligned_img2 = warper.warp()
+```
+
+
+#### As a pipeline
+**`lia config.yaml`**
+
+For details about the config parameters please refer to the example `config.yaml` provided in this repository.
 
 ### Dependencies
-`numpy tifffile opencv-contrib-python dask scikit-learn`
+`numpy tifffile pandas opencv-contrib-python dask scikit-learn scikit-image`
 

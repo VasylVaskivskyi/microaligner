@@ -23,7 +23,8 @@ import dask
 import numpy as np
 
 from ..shared_modules.dtype_aliases import Flow, Image
-from ..shared_modules.img_checks import (check_img_is_2d_grey,
+from ..shared_modules.img_checks import (check_img_dims_match,
+                                         check_img_is_2d_grey,
                                          check_img_is_provided)
 from ..shared_modules.similarity_scoring import check_if_higher_similarity
 from ..shared_modules.slicer import split_image_into_tiles_of_size
@@ -89,6 +90,7 @@ class OptFlowRegistrator:
     def register(self) -> np.ndarray:
         check_img_is_provided(self._ref_img, "ref")
         check_img_is_provided(self._mov_img, "mov")
+        check_img_dims_match(self._ref_img, self._mov_img)
 
         self._init_tile_flow_calc()
         self._init_warper()

@@ -24,7 +24,8 @@ import numpy as np
 from skimage.transform import AffineTransform, warp
 
 from ..shared_modules.dtype_aliases import Image, TMat
-from ..shared_modules.img_checks import (check_img_is_2d_grey,
+from ..shared_modules.img_checks import (check_img_dims_match,
+                                         check_img_is_2d_grey,
                                          check_img_is_provided)
 from ..shared_modules.similarity_scoring import check_if_higher_similarity
 from .feature_detection import Features
@@ -72,6 +73,7 @@ class FeatureRegistrator:
     def register(self, reuse_ref_img: bool = False) -> TMat:
         check_img_is_provided(self._ref_img, "ref")
         check_img_is_provided(self._mov_img, "mov")
+        check_img_dims_match(self._ref_img, self._mov_img)
 
         if reuse_ref_img:
             if self._ref_pyr_features == []:
@@ -278,7 +280,7 @@ class FeatureRegistrator:
         if img.max() == 0:
             return img
         else:
-            #low_sigma, high_sigma = self.get_dog_sigmas(self._this_pyr_factor)
+            # low_sigma, high_sigma = self.get_dog_sigmas(self._this_pyr_factor)
 
             fimg = cv.normalize(img, None, 0, 1, cv.NORM_MINMAX, cv.CV_32F)
             kernel = (low_sigma * 4 * 2 + 1, low_sigma * 4 * 2 + 1)  # as in opencv

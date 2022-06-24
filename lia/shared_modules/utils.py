@@ -15,10 +15,10 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import gc
+from copy import deepcopy
 from pathlib import Path
 from typing import List, Tuple
-from copy import deepcopy
-import gc
 
 import cv2 as cv
 import dask
@@ -96,8 +96,10 @@ def transform_img_with_tmat(
     return img
 
 
-def set_number_of_dask_workers(n_workers: int):
-    if n_workers == 1:
+def set_number_of_dask_workers(n_workers: int = 0):
+    if n_workers == 0:
+        dask.config.set({"scheduler": "processes"})
+    elif n_workers == 1:
         dask.config.set({"scheduler": "synchronous"})
     else:
         dask.config.set({"num_workers": n_workers, "scheduler": "processes"})

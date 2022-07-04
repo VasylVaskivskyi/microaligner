@@ -5,29 +5,37 @@
         "Parameters": {
             "title": "Parameters",
             "required": [
-                "ImagePaths",
-                "IsStack",
+                "InputImagePaths",
+                "InputIsStack",
                 "OutputDir",
+                "SaveOutputToStack",
                 "ReferenceChannel",
-                "ReferenceImage",
-                "FeatureReg"
+                "ReferenceImage"
+            ],
+            "anyOf": [
+                {"required":["FeatureReg"]},
+                {"required":["OptFlowReg"]}
             ],
             "type": "object",
             "additionalProperties": false,
             "properties": {
-                "ImagePaths": {
+                "InputImagePaths": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "IsStack": {
+                "InputIsStack": {
                     "type": "boolean",
                     "default": false
                 },
                 "OutputDir": {
                     "type": "string",
                     "default": "./output"
+                },
+                "SaveOutputToStack": {
+                    "type": "boolean",
+                    "default": true
                 },
                 "ReferenceImage": {
                     "type": "integer",

@@ -20,6 +20,7 @@ import xml.etree.ElementTree as ET
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Union
+from copy import deepcopy
 
 import tifffile as tif
 
@@ -33,7 +34,8 @@ class DatasetStructure:
     def __init__(self):
         self._ref_ch = "DAPI"
         self.img_paths = []
-        self.is_stack = False
+        self.input_is_stack = False
+        self.output_is_stack = True
 
     @property
     def ref_channel_name(self) -> str:
@@ -44,7 +46,7 @@ class DatasetStructure:
         self._ref_ch = self._strip_cycle_info(channel_name)
 
     def get_dataset_structure(self) -> dict:
-        if self.is_stack:
+        if self.input_is_stack:
             return self._get_stack_structure(self.img_paths[0])
         else:
             return self._get_img_list_structure(self.img_paths)
@@ -199,7 +201,79 @@ class DatasetStructure:
             img_list_structure[cyc]["img_path"] = path
         return img_list_structure
 
-    def generate_new_metadata(self, target_shape: Shape2D):
+    def generate_new_metadata(self, target_shape: Shape2D) -> Dict[Path, str]:
+        if self.output_is_stack:
+            combined_meta = self.combine_meta_from_multiple_imgs(target_shape)
+            return combined_meta
+        else:
+            updated_meta = self.update_meta_for_each_img(target_shape)
+            return updated_meta
+
+    def update_meta_for_each_img(self, target_shape: Shape2D) -> Dict[Path, str]:
+        old_xmls = dict()
+        planes = []
+        channels = []
+        for path in self.img_paths:
+            old_xml = self._read_ome_meta_from_file(path)
+            old_ome_info = self._collect_info_from_ome(old_xml)
+            old_xmls[path] = old_xml
+            planes.append(old_ome_info["SizeZ"])
+            channels.append(old_ome_info["SizeC"])
+
+        sizes = {
+            "SizeX": target_shape[1],
+            "SizeY": target_shape[0],
+            "SizeC": channels[0],
+            "SizeZ": max(planes),
+            "SizeT": 1,
+        }
+
+        new_xmls = dict()
+        for img_path, old_xml in old_xmls.items():
+            new_xml = deepcopy(old_xml)
+            for attr, val in sizes.items():
+                new_xml.find("Image").find("Pixels").set(attr, str(val))
+
+            proper_ome_attribs = {
+                "xmlns": "http://www.openmicroscopy.org/Schemas/OME/2016-06",
+                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                "xsi:schemaLocation": "http://www.openmicroscopy.org/Schemas/OME/2016-06 http://www.openmicroscopy.org/Schemas/OME/2016-06/ome.xsd",
+            }
+            new_xml.attrib.clear()
+
+            for attr, val in proper_ome_attribs.items():
+                new_xml.set(attr, val)
+
+            tiffdata = new_xml.find("Image").find("Pixels").findall("TiffData")
+            if tiffdata is not None or tiffdata != []:
+                for td in tiffdata:
+                    new_xml.find("Image").find("Pixels").remove(td)
+
+            # add new tiffdata
+            ifd = 0
+            for t in range(0, sizes["SizeT"]):
+                for c in range(0, sizes["SizeC"]):
+                    for z in range(0, sizes["SizeZ"]):
+                        ET.SubElement(
+                            new_xml.find("Image").find("Pixels"),
+                            "TiffData",
+                            dict(
+                                FirstC=str(c),
+                                FirstT=str(t),
+                                FirstZ=str(z),
+                                IFD=str(ifd),
+                                PlaneCount=str(1),
+                            ),
+                        )
+                        ifd += 1
+            xml_declaration = '<?xml version="1.0" encoding="UTF-8"?>'
+            result_ome_meta = xml_declaration + ET.tostring(
+                new_xml, method="xml", encoding="utf-8"
+            ).decode("ascii", errors="ignore")
+            new_xmls[img_path] = result_ome_meta
+        return new_xmls
+
+    def combine_meta_from_multiple_imgs(self, target_shape: Shape2D) -> Dict[Path, str]:
         ncycles = len(self.img_paths)
         time = []
         planes = []
@@ -306,4 +380,5 @@ class DatasetStructure:
         result_ome_meta = xml_declaration + ET.tostring(
             ref_xml, method="xml", encoding="utf-8"
         ).decode("ascii", errors="ignore")
-        return result_ome_meta
+        combined_meta = {Path("combined"): result_ome_meta}
+        return combined_meta

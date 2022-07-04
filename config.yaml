@@ -1,18 +1,23 @@
-# List of images each having same number of channels in the same order
+# List of input images, each having same number of channels, arranged in the same order
 # If your input image is a stack that contains all the cycles
-# Write it ImagePaths: ["img_path"]
-ImagePaths:
-  - "img_path"
-  - "img_path"
-IsStack: false
+# Write in a format InputImagePaths: ["img_path"]
+InputImagePaths:
+  - "img_path1"
+  - "img_path2"
+InputIsStack: false
+# Images will be saved to files: feature_reg_result.tif and optflow_reg_result.tif
 OutputDir: "/path/to/out/registered_imgs"
-#TODO add option to save as separate imgs
+
+# If true will save all cycles into a one image
+# If false will save each cycle as a separate image
+SaveOutputToStack: true
 
 # ReferenceImage e.g. if your images are 1.tif 2.tif 3.tif,
 # and you reference image is 1.tif, then ReferenceImage: 0"
 # Ids start from 0
 # Alternatively if your images are in a stack ReferenceImage would mean
 # which round of imaging in stack to use
+
 ReferenceImage: 0
 # Channel to use for alignment, has to be present in all rounds.
 ReferenceChannel: "DAPI"
@@ -28,13 +33,13 @@ FeatureReg:
   NumberIterationsPerLevel: 3
   TileSize: 1000
   Overlap: 100
-  NumberOfWorkers: 1
+  NumberOfWorkers: 0
 
 OptFlowReg:
   NumberPyramidLevels: 3
   NumberIterationsPerLevel: 3
   TileSize: 1000
   Overlap: 100
-  NumberOfWorkers: 1
+  NumberOfWorkers: 0
 
 # number of parallel processes to use for computation

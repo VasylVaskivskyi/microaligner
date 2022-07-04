@@ -20,10 +20,10 @@ from typing import List
 
 import cv2 as cv
 import numpy as np
-from .feature_detection import (Features, find_features_parallelized,
-                                match_features)
 
 from ..shared_modules.slicer import split_image_into_tiles_of_size
+from .feature_detection import (Features, find_features_parallelized,
+                                match_features)
 
 
 def split_image_into_tiles(img, tile_size: int):

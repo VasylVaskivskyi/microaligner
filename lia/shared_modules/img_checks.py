@@ -76,7 +76,7 @@ def check_number_of_input_img_paths(img_paths: List[Path], is_stack: bool):
         if is_stack:
             msg = (
                 "Too many input images. "
-                + "When flag IsStack is true only one image can be used"
+                + "When flag InputIsStack is true only one image can be used"
             )
             raise ValueError(msg)
         else:

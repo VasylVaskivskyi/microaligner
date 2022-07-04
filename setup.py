@@ -6,8 +6,10 @@ with open("README.md", "r", encoding="utf-8") as s:
 # ---------- Check if opencv-contrib is already installed ------------
 opencv_installed = False
 try:
-    import pkg_resources
     import re
+
+    import pkg_resources
+
     installed_packages = {d.project_name: d.version for d in pkg_resources.working_set}
     for pkg, ver in installed_packages.items():
         matched = re.match("opencv-contrib", pkg, re.IGNORECASE)
@@ -30,7 +32,7 @@ package_list = [
     "dask>=2020.0",
     "scikit-learn>=1.0",
     "scikit-image>=0.19",
-    "jsonschema>=4.0"
+    "jsonschema>=4.0",
 ]
 if not opencv_installed:
     package_list.append("opencv-contrib-python>=4.5,<5.0")
@@ -60,9 +62,5 @@ setuptools.setup(
     install_requires=package_list,
     include_package_data=True,
     data_files=[("lia", ["shared_modules/config_schema.json"])],
-    entry_points={
-        "console_scripts": [
-            "lia = lia.__main__:main"
-        ]
-    }
+    entry_points={"console_scripts": ["lia = lia.__main__:main"]},
 )

@@ -353,13 +353,13 @@ def validate_config(config_path: Path):
     config = read_yaml(config_path)
     jsonschema.validate(config, config_schema)
     missing_imgs = []
-    for img_path in config["InputImagePaths"]:
+    for img_path in config["Input"]["InputImagePaths"]:
         if not Path(img_path).exists():
             missing_imgs.append(img_path)
     if missing_imgs != []:
         msg = f"These input images are not found: {missing_imgs}"
         raise FileNotFoundError(msg)
-    check_number_of_input_img_paths(config["InputImagePaths"], config["InputIsStack"])
+    check_number_of_input_img_paths(config["Input"]["InputImagePaths"], config["Input"]["InputIsStack"])
     return
 
 
@@ -372,16 +372,16 @@ def read_yaml(path: Path) -> dict:
 def run_feature_reg(config, target_shape):
     print("Performing linear feature based image registration")
 
-    img_paths = [Path(p) for p in config["InputImagePaths"]]
-    input_is_stack = config["InputIsStack"]
-    save_to_stack = config["SaveOutputToStack"]
-    ref_cycle_id = config["ReferenceImage"]
-    out_dir = Path(config["OutputDir"])
+    img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
+    input_is_stack = config["Input"]["InputIsStack"]
+    save_to_stack = config["Output"]["SaveOutputToStack"]
+    out_dir = Path(config["Output"]["OutputDir"])
+    ref_cycle_id = config["DataStructure"]["ReferenceImage"]
 
-    n_workers = config["FeatureReg"]["NumberOfWorkers"]
-    num_pyr_lvl = config["FeatureReg"]["NumberPyramidLevels"]
-    num_iter = config["FeatureReg"]["NumberIterationsPerLevel"]
-    tile_size = config["FeatureReg"]["TileSize"]
+    n_workers = config["RegistrationParameters"]["FeatureReg"]["NumberOfWorkers"]
+    num_pyr_lvl = config["RegistrationParameters"]["FeatureReg"]["NumberPyramidLevels"]
+    num_iter = config["RegistrationParameters"]["FeatureReg"]["NumberIterationsPerLevel"]
+    tile_size = config["RegistrationParameters"]["FeatureReg"]["TileSize"]
 
     set_number_of_dask_workers(n_workers)
     struct = DatasetStructure()
@@ -437,16 +437,17 @@ def check_input_img_dims_match(img_paths: List[Path]) -> bool:
 
 
 def run_opt_flow_reg(config, feature_reg: str, img_paths: List[Path], target_shape: Shape2D):
-    input_is_stack = config["InputIsStack"]
-    save_to_stack = config["SaveOutputToStack"]
-    ref_cycle_id = config["ReferenceImage"]
-    out_dir = Path(config["OutputDir"])
+    input_is_stack = config["Input"]["InputIsStack"]
+    save_to_stack = config["Output"]["SaveOutputToStack"]
+    out_dir = Path(config["Output"]["OutputDir"])
+    ref_cycle_id = config["DataStructure"]["ReferenceImage"]
 
-    n_workers = config["OptFlowReg"]["NumberOfWorkers"]
-    num_pyr_lvl = config["OptFlowReg"]["NumberPyramidLevels"]
-    num_iter = config["OptFlowReg"]["NumberIterationsPerLevel"]
-    tile_size = config["OptFlowReg"]["TileSize"]
-    overlap = config["OptFlowReg"]["Overlap"]
+    optlfow_reg_param = config["RegistrationParameters"]["OptFlowReg"]
+    n_workers = optlfow_reg_param["NumberOfWorkers"]
+    num_pyr_lvl = optlfow_reg_param["NumberPyramidLevels"]
+    num_iter = optlfow_reg_param["NumberIterationsPerLevel"]
+    tile_size = optlfow_reg_param["TileSize"]
+    overlap = optlfow_reg_param["Overlap"]
 
     need_to_run_freg = False
     if feature_reg in config:
@@ -458,18 +459,17 @@ def run_opt_flow_reg(config, feature_reg: str, img_paths: List[Path], target_sha
             raise Exception(msg)
     else:
         input_is_stack_of = input_is_stack
-        img_paths = [Path(p) for p in config["InputImagePaths"]]
+        img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
         dims_match = check_input_img_dims_match(img_paths)
         if not dims_match:
             print("Image dimensions do not match. " +
                   "This probably means that they are not aligned. " +
                   "Will try to perform FeatureReg first")
-            new_config = deepcopy(config)
-            new_config["FeatureReg"] = config["OptFlowReg"]
+            config["RegistrationParameters"]["FeatureReg"] = config["RegistrationParameters"]["OptFlowReg"]
             need_to_run_freg = True
 
     if need_to_run_freg:
-        img_paths = run_feature_reg(new_config, target_shape)
+        img_paths = run_feature_reg(config, target_shape)
         input_is_stack_of = save_to_stack
 
     set_number_of_dask_workers(n_workers)
@@ -507,16 +507,16 @@ def main():
     validate_config(config_path)
     config = read_yaml(config_path)
 
-    img_paths = [Path(p) for p in config["InputImagePaths"]]
+    img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
     target_shape = get_target_shape(img_paths)
 
     feature_reg = "FeatureReg"
     opt_flow_reg = "OptFlowReg"
 
-    if feature_reg in config:
+    if feature_reg in config["RegistrationParameters"]:
         img_paths = run_feature_reg(config, target_shape)
 
-    if opt_flow_reg in config:
+    if opt_flow_reg in config["RegistrationParameters"]:
         run_opt_flow_reg(config, feature_reg, img_paths, target_shape)
 
 

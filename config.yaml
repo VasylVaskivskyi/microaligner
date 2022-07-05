@@ -1,45 +1,59 @@
+# Input
 # List of input images, each having same number of channels, arranged in the same order
 # If your input image is a stack that contains all the cycles
-# Write in a format InputImagePaths: ["img_path"]
-InputImagePaths:
-  - "img_path1"
-  - "img_path2"
-InputIsStack: false
-# Images will be saved to files: feature_reg_result.tif and optflow_reg_result.tif
-OutputDir: "/path/to/out/registered_imgs"
+# write it in a format InputImagePaths: ["img_path"]
+Input:
+  InputImagePaths:
+    - "img_path1"
+    - "img_path2"
+  InputIsStack: false
 
-# If true will save all cycles into a one image
-# If false will save each cycle as a separate image
-SaveOutputToStack: true
+# Output
+# Images will be saved to directory with the following patterns
+# If SaveOutputToStack: true
+# feature_reg_result_stack.tif and optflow_reg_result_stack.tif
+# If SaveOutputToStack: false
+# feature_reg_result_cyc001.tif and optflow_reg_result_cyc001.tif
+Output:
+  OutputDir: "/path/to/out/registered_imgs"
+  SaveOutputToStack: true
 
+# DataStructure
 # ReferenceImage e.g. if your images are 1.tif 2.tif 3.tif,
-# and you reference image is 1.tif, then ReferenceImage: 0"
+# and you reference image is 1.tif, then ReferenceImage: 0
 # Ids start from 0
 # Alternatively if your images are in a stack ReferenceImage would mean
 # which round of imaging in stack to use
-
-ReferenceImage: 0
+# Images must have the same number of channels, arranged in the same order in each cycle,
+# Such that reference channel e.g. DAPI, is in the same position in the cycle, e.g.
+# Cycle1: DAPI, CD4, CD3, CD45
+# Cycle2: DAPI, PanKeratin, Tubulin, Ki67
 # Channel to use for alignment, has to be present in all rounds.
-ReferenceChannel: "DAPI"
+DataStructure:
+  ReferenceImage: 0
+  ReferenceChannel: "DAPI"
 
+# Parameters for registration parts
+# If you do not want to do optical flow or feature based registration
+# then remove that part from the RegistrationParameters
+# Parameters:
+# NumberPyramidLevels - number of levels in scale pyramid, min 0, default 3
+# NumberIterationsPerLevel - number of registration iteration per pyramid level
+# TileSize - tiles are used to speed up computation
+# Overlap - overlap between adjacent tiles
+# NumberOfWorkers - number of parallel tiles to work on at the same time,
+#   default 0 - num parallel task as many as cores
+RegistrationParameters:
+  FeatureReg:
+    NumberPyramidLevels: 3
+    NumberIterationsPerLevel: 3
+    TileSize: 1000
+    Overlap: 100
+    NumberOfWorkers: 0
 
-#ReferenceCycleID: 0
-#ReferenceChannelIDPerCycle: 0
-#NumberChannelsPerCycle: 4
-#NumberZPlanesPerChannel: 1
-
-FeatureReg:
-  NumberPyramidLevels: 3
-  NumberIterationsPerLevel: 3
-  TileSize: 1000
-  Overlap: 100
-  NumberOfWorkers: 0
-
-OptFlowReg:
-  NumberPyramidLevels: 3
-  NumberIterationsPerLevel: 3
-  TileSize: 1000
-  Overlap: 100
-  NumberOfWorkers: 0
-
-# number of parallel processes to use for computation
+  OptFlowReg:
+    NumberPyramidLevels: 3
+    NumberIterationsPerLevel: 3
+    TileSize: 1000
+    Overlap: 100
+    NumberOfWorkers: 0

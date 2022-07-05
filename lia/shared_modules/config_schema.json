@@ -4,19 +4,54 @@
     "definitions": {
         "Parameters": {
             "title": "Parameters",
+            "type": "object",
             "required": [
-                "InputImagePaths",
-                "InputIsStack",
-                "OutputDir",
-                "SaveOutputToStack",
+                "Input",
+                "Output",
+                "DataStructure",
+                "RegistrationParameters"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "Input": {
+                    "$ref": "#/definitions/Input"
+                },
+                "Output": {
+                    "$ref": "#/definitions/Output"
+                },
+                "DataStructure": {
+                    "$ref": "#/definitions/DataStructure"
+                },
+                "RegistrationParameters": {
+                    "$ref": "#/definitions/RegistrationParameters"
+                }
+            }
+        },
+        "DataStructure": {
+            "title": "DataStructure",
+            "type": "object",
+            "required": [
                 "ReferenceChannel",
                 "ReferenceImage"
             ],
-            "anyOf": [
-                {"required":["FeatureReg"]},
-                {"required":["OptFlowReg"]}
-            ],
+            "additionalProperties": false,
+            "properties": {
+                "ReferenceImage": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "ReferenceChannel": {
+                    "type": "string"
+                }
+            }
+        },
+        "Input": {
+            "title": "Input",
             "type": "object",
+            "required": [
+                "InputImagePaths",
+                "InputIsStack"
+            ],
             "additionalProperties": false,
             "properties": {
                 "InputImagePaths": {
@@ -26,34 +61,46 @@
                     }
                 },
                 "InputIsStack": {
-                    "type": "boolean",
-                    "default": false
-                },
-                "OutputDir": {
-                    "type": "string",
-                    "default": "./output"
-                },
-                "SaveOutputToStack": {
-                    "type": "boolean",
-                    "default": true
-                },
-                "ReferenceImage": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "ReferenceChannel": {
-                    "type": "string"
-                },
-                "FeatureReg": {
-                    "$ref": "#/definitions/RegFields"
-                },
-                "OptFlowReg": {
-                    "$ref": "#/definitions/RegFields"
+                    "type": "boolean"
                 }
             }
         },
-        "RegFields": {
-            "title": "RegFields",
+        "Output": {
+            "title": "Output",
+            "type": "object",
+            "required": [
+                "OutputDir",
+                "SaveOutputToStack"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "OutputDir": {
+                    "type": "string"
+                },
+                "SaveOutputToStack": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "RegistrationParameters": {
+            "title": "RegistrationParameters",
+            "type": "object",
+            "anyOf": [
+                {"required":["FeatureReg"]},
+                {"required":["OptFlowReg"]}
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "FeatureReg": {
+                    "$ref": "#/definitions/RegistrationParametersFields"
+                },
+                "OptFlowReg": {
+                    "$ref": "#/definitions/RegistrationParametersFields"
+                }
+            }
+        },
+        "RegistrationParametersFields": {
+            "title": "RegistrationParametersFields",
             "type": "object",
             "required": [
                 "NumberIterationsPerLevel",

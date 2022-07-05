@@ -7,6 +7,13 @@ on parameters provided in a config file.
 
 Images with z-planes are projected along the z-plane before performing registration.
 
+### Installation
+
+`pip install lia`
+
+### Dependencies
+`numpy tifffile pandas opencv-contrib-python dask scikit-learn scikit-image` \
+Also check up the `environment.yaml` file.
 
 ### Example usage
 
@@ -20,7 +27,7 @@ freg.ref_img = img1
 freg.mov_img = img2
 transformation_matrix = freg.register()
 
-f_aligned_img2 = transform_img_with_tmat(img2, img2.shape, transformation_matrix)
+img2_feature_reg_aligned = transform_img_with_tmat(img2, img2.shape, transformation_matrix)
 ```
 
 ##### Optical flow based registration
@@ -34,7 +41,7 @@ flow_map = ofreg.register()
 warper = Warper()
 warper.image = img2
 warper.flow = flow_map
-of_aligned_img2 = warper.warp()
+img2_optflow_reg_aligned = warper.warp()
 ```
 
 
@@ -43,6 +50,9 @@ of_aligned_img2 = warper.warp()
 
 For details about the config parameters please refer to the example `config.yaml` provided in this repository.
 
-### Dependencies
-`numpy tifffile pandas opencv-contrib-python dask scikit-learn scikit-image`
+### Acknowledgments
 
+This package could never have been developed without thorough battle-testing by 
+[Tong Li](https://github.com/BioinfoTongLI) 
+and [Jun Sung Park](https://github.com/jpark27), 
+and guidance from [Omer Bayraktar](https://github.com/oabayraktar).

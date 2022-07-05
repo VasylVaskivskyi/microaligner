@@ -17,10 +17,10 @@
 
 import re
 import xml.etree.ElementTree as ET
+from copy import deepcopy
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Union
-from copy import deepcopy
 
 import tifffile as tif
 

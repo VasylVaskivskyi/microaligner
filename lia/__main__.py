@@ -17,10 +17,10 @@
 
 import argparse
 import gc
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-from copy import deepcopy
 
 import jsonschema
 import numpy as np
@@ -107,7 +107,7 @@ def transform_and_save_freg_imgs(
     transform_matrices: List[TMat],
     ome_meta_per_cyc: Dict[Path, str],
     input_is_stack: bool,
-    save_to_stack: bool
+    save_to_stack: bool,
 ):
     print("Transforming images")
     input_img_paths = [dataset_structure[cyc]["img_path"] for cyc in dataset_structure]
@@ -181,7 +181,7 @@ def do_feature_reg(
     num_pyr_lvl: int,
     num_iter: int,
     tile_size: int,
-    target_shape: Shape2D
+    target_shape: Shape2D,
 ) -> Tuple[List[TMat], List[Padding]]:
     freg = FeatureRegistrator()
     freg.num_pyr_lvl = num_pyr_lvl
@@ -266,7 +266,7 @@ def register_and_save_ofreg_imgs(
     num_iter: int,
     ome_meta_per_cyc: Dict[Path, str],
     input_is_stack: bool,
-    save_to_stack: bool
+    save_to_stack: bool,
 ):
     """Read images and register them sequentially: 1<-2, 2<-3, 3<-4 etc.
     It is assumed that there is equal number of channels in each cycle.
@@ -359,7 +359,9 @@ def validate_config(config_path: Path):
     if missing_imgs != []:
         msg = f"These input images are not found: {missing_imgs}"
         raise FileNotFoundError(msg)
-    check_number_of_input_img_paths(config["Input"]["InputImagePaths"], config["Input"]["InputIsStack"])
+    check_number_of_input_img_paths(
+        config["Input"]["InputImagePaths"], config["Input"]["InputIsStack"]
+    )
     return
 
 
@@ -378,10 +380,11 @@ def run_feature_reg(config, target_shape):
     out_dir = Path(config["Output"]["OutputDir"])
     ref_cycle_id = config["DataStructure"]["ReferenceImage"]
 
-    n_workers = config["RegistrationParameters"]["FeatureReg"]["NumberOfWorkers"]
-    num_pyr_lvl = config["RegistrationParameters"]["FeatureReg"]["NumberPyramidLevels"]
-    num_iter = config["RegistrationParameters"]["FeatureReg"]["NumberIterationsPerLevel"]
-    tile_size = config["RegistrationParameters"]["FeatureReg"]["TileSize"]
+    freg_reg_param = config["RegistrationParameters"]["FeatureReg"]
+    n_workers = freg_reg_param["NumberOfWorkers"]
+    num_pyr_lvl = freg_reg_param["NumberPyramidLevels"]
+    num_iter = freg_reg_param["NumberIterationsPerLevel"]
+    tile_size = freg_reg_param["TileSize"]
 
     set_number_of_dask_workers(n_workers)
     struct = DatasetStructure()
@@ -390,13 +393,12 @@ def run_feature_reg(config, target_shape):
     struct.output_is_stack = save_to_stack
     dataset_structure = struct.get_dataset_structure()
     tmat_per_cycle, padding_per_cycle = do_feature_reg(
-        dataset_structure, ref_cycle_id, num_pyr_lvl,
-        num_iter, tile_size, target_shape
+        dataset_structure, ref_cycle_id, num_pyr_lvl, num_iter, tile_size, target_shape
     )
     new_ome_meta = struct.generate_new_metadata(target_shape)
     feature_reg_out_file_names = {
         "stack": "feature_reg_result_stack.tif",
-        "per_cycle": "feature_reg_result_cyc{cyc:03d}.tif"
+        "per_cycle": "feature_reg_result_cyc{cyc:03d}.tif",
     }
     transform_and_save_freg_imgs(
         dataset_structure,
@@ -406,7 +408,7 @@ def run_feature_reg(config, target_shape):
         tmat_per_cycle,
         new_ome_meta,
         input_is_stack,
-        save_to_stack
+        save_to_stack,
     )
     tmat_per_cycle_flat = [M.flatten() for M in tmat_per_cycle]
     img_paths = [dataset_structure[cyc]["img_path"] for cyc in dataset_structure]
@@ -436,21 +438,23 @@ def check_input_img_dims_match(img_paths: List[Path]) -> bool:
     return all_match
 
 
-def run_opt_flow_reg(config, feature_reg: str, img_paths: List[Path], target_shape: Shape2D):
+def run_opt_flow_reg(
+    config, feature_reg: str, img_paths: List[Path], target_shape: Shape2D
+):
     input_is_stack = config["Input"]["InputIsStack"]
     save_to_stack = config["Output"]["SaveOutputToStack"]
     out_dir = Path(config["Output"]["OutputDir"])
     ref_cycle_id = config["DataStructure"]["ReferenceImage"]
 
-    optlfow_reg_param = config["RegistrationParameters"]["OptFlowReg"]
-    n_workers = optlfow_reg_param["NumberOfWorkers"]
-    num_pyr_lvl = optlfow_reg_param["NumberPyramidLevels"]
-    num_iter = optlfow_reg_param["NumberIterationsPerLevel"]
-    tile_size = optlfow_reg_param["TileSize"]
-    overlap = optlfow_reg_param["Overlap"]
+    optflow_reg_param = config["RegistrationParameters"]["OptFlowReg"]
+    n_workers = optflow_reg_param["NumberOfWorkers"]
+    num_pyr_lvl = optflow_reg_param["NumberPyramidLevels"]
+    num_iter = optflow_reg_param["NumberIterationsPerLevel"]
+    tile_size = optflow_reg_param["TileSize"]
+    overlap = optflow_reg_param["Overlap"]
 
     need_to_run_freg = False
-    if feature_reg in config:
+    if feature_reg in config["RegistrationParameters"]:
         input_is_stack_of = save_to_stack
         img_paths = img_paths
         dims_match = check_input_img_dims_match(img_paths)
@@ -462,10 +466,12 @@ def run_opt_flow_reg(config, feature_reg: str, img_paths: List[Path], target_sha
         img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
         dims_match = check_input_img_dims_match(img_paths)
         if not dims_match:
-            print("Image dimensions do not match. " +
-                  "This probably means that they are not aligned. " +
-                  "Will try to perform FeatureReg first")
-            config["RegistrationParameters"]["FeatureReg"] = config["RegistrationParameters"]["OptFlowReg"]
+            print(
+                "Image dimensions do not match. "
+                + "This probably means that they are not aligned. "
+                + "Will try to perform FeatureReg first"
+            )
+            config["RegistrationParameters"][feature_reg] = optflow_reg_param
             need_to_run_freg = True
 
     if need_to_run_freg:
@@ -482,7 +488,7 @@ def run_opt_flow_reg(config, feature_reg: str, img_paths: List[Path], target_sha
     new_ome_meta = struct.generate_new_metadata(target_shape)
     optflow_reg_out_file_names = {
         "stack": "optflow_reg_result_stack.tif",
-        "per_cycle": "optflow_reg_result_cyc{cyc:03d}.tif"
+        "per_cycle": "optflow_reg_result_cyc{cyc:03d}.tif",
     }
     print("Performing non-linear optical flow based image registration")
     register_and_save_ofreg_imgs(
@@ -495,7 +501,7 @@ def run_opt_flow_reg(config, feature_reg: str, img_paths: List[Path], target_sha
         num_iter,
         new_ome_meta,
         input_is_stack,
-        save_to_stack
+        save_to_stack,
     )
     print("Finished\n")
     return

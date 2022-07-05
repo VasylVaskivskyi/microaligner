@@ -360,7 +360,7 @@ def validate_config(config_path: Path):
         msg = f"These input images are not found: {missing_imgs}"
         raise FileNotFoundError(msg)
     check_number_of_input_img_paths(
-        config["Input"]["InputImagePaths"], config["Input"]["InputIsStack"]
+        config["Input"]["InputImagePaths"], config["Input"]["InputIsCycleStack"]
     )
     return
 
@@ -375,8 +375,8 @@ def run_feature_reg(config, target_shape):
     print("Performing linear feature based image registration")
 
     img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
-    input_is_stack = config["Input"]["InputIsStack"]
-    save_to_stack = config["Output"]["SaveOutputToStack"]
+    input_is_stack = config["Input"]["InputIsCycleStack"]
+    save_to_stack = config["Output"]["SaveOutputToCycleStack"]
     out_dir = Path(config["Output"]["OutputDir"])
     ref_cycle_id = config["DataStructure"]["ReferenceImage"]
 
@@ -441,8 +441,8 @@ def check_input_img_dims_match(img_paths: List[Path]) -> bool:
 def run_opt_flow_reg(
     config, feature_reg: str, img_paths: List[Path], target_shape: Shape2D
 ):
-    input_is_stack = config["Input"]["InputIsStack"]
-    save_to_stack = config["Output"]["SaveOutputToStack"]
+    input_is_stack = config["Input"]["InputIsCycleStack"]
+    save_to_stack = config["Output"]["SaveOutputToCycleStack"]
     out_dir = Path(config["Output"]["OutputDir"])
     ref_cycle_id = config["DataStructure"]["ReferenceImage"]
 

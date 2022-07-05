@@ -6,17 +6,17 @@ Input:
   InputImagePaths:
     - "img_path1"
     - "img_path2"
-  InputIsStack: false
+  InputIsCycleStack: false
 
 # Output
 # Images will be saved to directory with the following patterns
-# If SaveOutputToStack: true
+# If SaveOutputToCycleStack: true
 # feature_reg_result_stack.tif and optflow_reg_result_stack.tif
-# If SaveOutputToStack: false
+# If SaveOutputToCycleStack: false
 # feature_reg_result_cyc001.tif and optflow_reg_result_cyc001.tif
 Output:
   OutputDir: "/path/to/out/registered_imgs"
-  SaveOutputToStack: true
+  SaveOutputToCycleStack: true
 
 # DataStructure
 # ReferenceImage e.g. if your images are 1.tif 2.tif 3.tif,

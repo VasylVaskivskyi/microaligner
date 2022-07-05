@@ -182,11 +182,13 @@ def do_feature_reg(
     num_iter: int,
     tile_size: int,
     target_shape: Shape2D,
+    use_full_res_img: bool,
 ) -> Tuple[List[TMat], List[Padding]]:
     freg = FeatureRegistrator()
     freg.num_pyr_lvl = num_pyr_lvl
     freg.num_iterations = num_iter
     freg.tile_size = tile_size
+    freg.use_full_res_img = use_full_res_img
 
     tmat_per_cycle = []
     padding = []
@@ -267,6 +269,7 @@ def register_and_save_ofreg_imgs(
     ome_meta_per_cyc: Dict[Path, str],
     input_is_stack: bool,
     save_to_stack: bool,
+    use_full_res_img: bool,
 ):
     """Read images and register them sequentially: 1<-2, 2<-3, 3<-4 etc.
     It is assumed that there is equal number of channels in each cycle.
@@ -276,6 +279,7 @@ def register_and_save_ofreg_imgs(
     ofreg.overlap = overlap
     ofreg.num_pyr_lvl = num_pyr_lvl
     ofreg.num_iterations = num_iter
+    ofreg.use_full_res_img = use_full_res_img
 
     warper = Warper()
     warper.tile_size = tile_size
@@ -385,6 +389,7 @@ def run_feature_reg(config, target_shape):
     num_pyr_lvl = freg_reg_param["NumberPyramidLevels"]
     num_iter = freg_reg_param["NumberIterationsPerLevel"]
     tile_size = freg_reg_param["TileSize"]
+    use_full_res_img = freg_reg_param["UseFullResImage"]
 
     set_number_of_dask_workers(n_workers)
     struct = DatasetStructure()
@@ -393,7 +398,13 @@ def run_feature_reg(config, target_shape):
     struct.output_is_stack = save_to_stack
     dataset_structure = struct.get_dataset_structure()
     tmat_per_cycle, padding_per_cycle = do_feature_reg(
-        dataset_structure, ref_cycle_id, num_pyr_lvl, num_iter, tile_size, target_shape
+        dataset_structure,
+        ref_cycle_id,
+        num_pyr_lvl,
+        num_iter,
+        tile_size,
+        target_shape,
+        use_full_res_img,
     )
     new_ome_meta = struct.generate_new_metadata(target_shape)
     feature_reg_out_file_names = {
@@ -452,6 +463,7 @@ def run_opt_flow_reg(
     num_iter = optflow_reg_param["NumberIterationsPerLevel"]
     tile_size = optflow_reg_param["TileSize"]
     overlap = optflow_reg_param["Overlap"]
+    use_full_res_img = optflow_reg_param["UseFullResImage"]
 
     need_to_run_freg = False
     if feature_reg in config["RegistrationParameters"]:
@@ -502,6 +514,7 @@ def run_opt_flow_reg(
         new_ome_meta,
         input_is_stack,
         save_to_stack,
+        use_full_res_img,
     )
     print("Finished\n")
     return

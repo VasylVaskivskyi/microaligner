@@ -37,12 +37,14 @@ DataStructure:
 # If you do not want to do optical flow or feature based registration
 # then remove that part from the RegistrationParameters
 # Parameters:
-# NumberPyramidLevels - number of levels in scale pyramid, min 0, default 3
+# NumberPyramidLevels - number of levels in scale pyramid, min 1, default 3
 # NumberIterationsPerLevel - number of registration iteration per pyramid level
 # TileSize - tiles are used to speed up computation
 # Overlap - overlap between adjacent tiles
 # NumberOfWorkers - number of parallel tiles to work on at the same time,
 #   default 0 - num parallel task as many as cores
+# UseFullResImage - if true will use full resolution image as a part of pyramid base alignment
+# It is more useful for the OptFlowReg as it gives more precise local alignment
 RegistrationParameters:
   FeatureReg:
     NumberPyramidLevels: 3
@@ -50,6 +52,7 @@ RegistrationParameters:
     TileSize: 1000
     Overlap: 100
     NumberOfWorkers: 0
+    UseFullResImage: false
 
   OptFlowReg:
     NumberPyramidLevels: 3
@@ -57,3 +60,4 @@ RegistrationParameters:
     TileSize: 1000
     Overlap: 100
     NumberOfWorkers: 0
+    UseFullResImage: true

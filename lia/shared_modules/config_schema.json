@@ -107,7 +107,8 @@
                 "NumberOfWorkers",
                 "NumberPyramidLevels",
                 "Overlap",
-                "TileSize"
+                "TileSize",
+                "UseFullResImage"
             ],
             "additionalProperties": false,
             "properties": {
@@ -130,6 +131,9 @@
                 "NumberOfWorkers": {
                     "type": "integer",
                     "minimum": 0
+                },
+                "UseFullResImage": {
+                    "type": "boolean"
                 }
             }
         }

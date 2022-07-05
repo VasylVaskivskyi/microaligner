@@ -39,6 +39,7 @@ class FeatureRegistrator:
         self.num_pyr_lvl = 3
         self.num_iterations = 3
         self.tile_size = 1000
+        self.use_full_res_img = False
         self._ref_pyr_features = []
         self._ref_img_pyr = []
         self._factors = [8, 4, 2]
@@ -131,7 +132,13 @@ class FeatureRegistrator:
 
     def _generate_img_pyr(self, arr: Image) -> Tuple[List[Image], List[int]]:
         if self.num_pyr_lvl < 0:
-            raise ValueError("Number of pyramid levels cannot be less than 0")
+            raise ValueError("Number of pyramid levels cannot be less than 1")
+        if self.num_pyr_lvl == 0 and not self.use_full_res_img:
+            msg = (
+                "Number of pyramid levels is 0 and use_full_res_img is False. "
+                + "Please change one of the parameters"
+            )
+            raise ValueError(msg)
         # Pyramid scales from smallest to largest
         pyramid: List[Image] = []
         factors = []
@@ -146,8 +153,9 @@ class FeatureRegistrator:
                 factors.append(factor)
         factors = list(reversed(factors))
         pyramid = list(reversed(pyramid))
-        pyramid.append(arr)
-        factors.append(1)
+        if self.use_full_res_img:
+            pyramid.append(arr)
+            factors.append(1)
         return pyramid, factors
 
     def _iterative_alignment(

@@ -16,6 +16,7 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import gc
+from math import log2
 from typing import List, Tuple
 
 import cv2 as cv
@@ -54,6 +55,7 @@ class OptFlowRegistrator:
         self.num_iterations = 3
         self.tile_size = 1000
         self.overlap = 100
+        self.use_full_res_img = False
         self._warper = Warper()
         self._tile_flow_calc = TileFlowCalc()
 
@@ -137,7 +139,7 @@ class OptFlowRegistrator:
                         dstsize = mov_pyr[lvl + 1].shape[::-1]
                         m_flow = cv.pyrUp(this_flow * 2, dstsize=dstsize)
                     else:
-                        m_flow = this_flow
+                        m_flow = self._upscale_flow_to_full_res(this_flow, factor)
                 elif lvl == len(factors) - 1:
                     m_flow = self._merge_list_of_flows([m_flow, this_flow])
                 else:
@@ -153,6 +155,12 @@ class OptFlowRegistrator:
         # Pyramid scales from smallest to largest
         if self.num_pyr_lvl < 0:
             raise ValueError("Number of pyramid levels cannot be less than 0")
+        if self.num_pyr_lvl == 0 and not self.use_full_res_img:
+            msg = (
+                "Number of pyramid levels is 0 and use_full_res_img is False. "
+                + "Please change one of the parameters"
+            )
+            raise ValueError(msg)
         # Pyramid scales from smallest to largest
         pyramid: List[Image] = []
         factors = []
@@ -167,9 +175,23 @@ class OptFlowRegistrator:
                 factors.append(factor)
         factors = list(reversed(factors))
         pyramid = list(reversed(pyramid))
-        pyramid.append(arr)
-        factors.append(1)
+        if self.use_full_res_img:
+            pyramid.append(arr)
+            factors.append(1)
         return pyramid, factors
+
+    def _upscale_flow_to_full_res(self, flow: Flow, pyramid_factor: int) -> Flow:
+        if abs(flow.shape[0] - self._ref_img.shape[0]) <= 1:
+            return flow
+        else:
+            num_lvls = int(log2(pyramid_factor))
+            upscaled_flow = flow
+            for i in range(0, num_lvls):
+                if i == num_lvls - 1:
+                    upscaled_flow = cv.pyrUp(flow, dstsize=self._ref_img.shape[::-1])
+                else:
+                    upscaled_flow = cv.pyrUp(flow)
+            return upscaled_flow
 
     def _merge_flow_in_tiles(self, flow1: Flow, flow2: Flow):
         flow1_list, slicer_info = split_image_into_tiles_of_size(

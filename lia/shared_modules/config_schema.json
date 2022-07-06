@@ -108,7 +108,8 @@
                 "NumberPyramidLevels",
                 "Overlap",
                 "TileSize",
-                "UseFullResImage"
+                "UseFullResImage",
+                "UseDOG"
             ],
             "additionalProperties": false,
             "properties": {
@@ -133,6 +134,9 @@
                     "minimum": 0
                 },
                 "UseFullResImage": {
+                    "type": "boolean"
+                },
+                "UseDOG":{
                     "type": "boolean"
                 }
             }

@@ -56,6 +56,7 @@ class OptFlowRegistrator:
         self.tile_size = 1000
         self.overlap = 100
         self.use_full_res_img = False
+        self.use_dog = False
         self._warper = Warper()
         self._tile_flow_calc = TileFlowCalc()
 
@@ -112,16 +113,20 @@ class OptFlowRegistrator:
                 self._warper.flow = m_flow
                 mov_this_lvl = self._warper.warp()
                 # mov_this_lvl = self.warp_with_flow(mov_this_lvl, m_flow)
-            self._tile_flow_calc.ref_img = ref_pyr[lvl]
-            self._tile_flow_calc.mov_img = mov_this_lvl
+            self._tile_flow_calc.ref_img = self.dog(ref_pyr[lvl], self.use_dog)
+            self._tile_flow_calc.mov_img = self.dog(mov_this_lvl, self.use_dog)
             this_flow = self._tile_flow_calc.calc_flow()
+
             self._warper.image = mov_this_lvl
             self._warper.flow = this_flow
             mov_this_lvl = self._warper.warp()
             gc.collect()
             # this_flow = self.calc_flow(ref_pyr[lvl], mov_this_lvl, 1, 0, 51)
             is_higher_similarity = check_if_higher_similarity(
-                ref_pyr[lvl], mov_this_lvl, mov_pyr[lvl], self.tile_size
+                self.dog(ref_pyr[lvl], True),
+                self.dog(mov_this_lvl, True),
+                self.dog(mov_pyr[lvl], True),
+                self.tile_size,
             )
             if not any(is_higher_similarity):
                 print("    Worse alignment than before")
@@ -217,3 +222,35 @@ class OptFlowRegistrator:
             for i in range(1, len(flow_list)):
                 m_flow = self._merge_flow_in_tiles(m_flow, flow_list[i])
         return m_flow
+
+    def get_dog_sigmas(self, pyr_factor: int) -> Tuple[int, int]:
+        if pyr_factor > 16:
+            return 1, 2
+        else:
+            sigmas = {1: (5, 9), 2: (4, 7), 4: (3, 5), 8: (2, 3), 16: (1, 2)}
+        return sigmas[pyr_factor]
+
+    def dog(self, img: Image, use_it: bool, low_sigma: int = 5, high_sigma: int = 9) -> Image:
+        """Difference of Gaussian filters"""
+        if not use_it:
+            return img
+        else:
+            if img.max() == 0:
+                return img
+            else:
+                # low_sigma, high_sigma = self.get_dog_sigmas(self._this_pyr_factor)
+
+                fimg = cv.normalize(img, None, 0, 1, cv.NORM_MINMAX, cv.CV_32F)
+                kernel = (low_sigma * 4 * 2 + 1, low_sigma * 4 * 2 + 1)  # as in opencv
+                ls = cv.GaussianBlur(
+                    fimg, kernel, sigmaX=low_sigma, dst=None, sigmaY=low_sigma
+                )
+                hs = cv.GaussianBlur(
+                    fimg, kernel, sigmaX=high_sigma, dst=None, sigmaY=high_sigma
+                )
+                diff_of_gaussians = hs - ls
+                del hs, ls
+                diff_of_gaussians = cv.normalize(
+                    diff_of_gaussians, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U
+                )
+                return diff_of_gaussians

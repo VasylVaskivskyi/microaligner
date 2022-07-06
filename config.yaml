@@ -1,7 +1,10 @@
 # Input
 # List of input images, each having same number of channels, arranged in the same order
 # If your input image is a stack that contains all the cycles
-# write it in a format InputImagePaths: ["img_path"]
+# write it in a format
+# InputImagePaths:
+#    - "stack_path"
+# InputIsCycleStack: true
 Input:
   InputImagePaths:
     - "img_path1"
@@ -35,8 +38,8 @@ DataStructure:
 
 # Parameters for registration parts
 # If you do not want to do optical flow or feature based registration
-# then remove that part from the RegistrationParameters
-# Parameters:
+# then remove that part from the RegistrationParameters.
+# RegistrationParameters:
 # NumberPyramidLevels - number of levels in scale pyramid, min 1, default 3
 # NumberIterationsPerLevel - number of registration iteration per pyramid level
 # TileSize - tiles are used to speed up computation
@@ -45,6 +48,9 @@ DataStructure:
 #   default 0 - num parallel task as many as cores
 # UseFullResImage - if true will use full resolution image as a part of pyramid base alignment
 # It is more useful for the OptFlowReg as it gives more precise local alignment
+# UseDOG - apply difference of Gaussian filters to the images before performing
+#   registration. It may help for cases with uneven illumination. If you see
+#   too much deformation after registration, you may want to turn it off for OptFlowReg.
 RegistrationParameters:
   FeatureReg:
     NumberPyramidLevels: 3
@@ -53,6 +59,7 @@ RegistrationParameters:
     Overlap: 100
     NumberOfWorkers: 0
     UseFullResImage: false
+    UseDOG: true
 
   OptFlowReg:
     NumberPyramidLevels: 3
@@ -61,3 +68,4 @@ RegistrationParameters:
     Overlap: 100
     NumberOfWorkers: 0
     UseFullResImage: true
+    UseDOG: false

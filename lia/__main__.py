@@ -21,6 +21,7 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from pprint import pprint
 
 import jsonschema
 import numpy as np
@@ -183,12 +184,14 @@ def do_feature_reg(
     tile_size: int,
     target_shape: Shape2D,
     use_full_res_img: bool,
+    use_dog: bool,
 ) -> Tuple[List[TMat], List[Padding]]:
     freg = FeatureRegistrator()
     freg.num_pyr_lvl = num_pyr_lvl
     freg.num_iterations = num_iter
     freg.tile_size = tile_size
     freg.use_full_res_img = use_full_res_img
+    freg.use_dog = use_dog
 
     tmat_per_cycle = []
     padding = []
@@ -270,6 +273,7 @@ def register_and_save_ofreg_imgs(
     input_is_stack: bool,
     save_to_stack: bool,
     use_full_res_img: bool,
+    use_dog: bool,
 ):
     """Read images and register them sequentially: 1<-2, 2<-3, 3<-4 etc.
     It is assumed that there is equal number of channels in each cycle.
@@ -280,6 +284,7 @@ def register_and_save_ofreg_imgs(
     ofreg.num_pyr_lvl = num_pyr_lvl
     ofreg.num_iterations = num_iter
     ofreg.use_full_res_img = use_full_res_img
+    ofreg.use_dog = use_dog
 
     warper = Warper()
     warper.tile_size = tile_size
@@ -390,6 +395,7 @@ def run_feature_reg(config, target_shape):
     num_iter = freg_reg_param["NumberIterationsPerLevel"]
     tile_size = freg_reg_param["TileSize"]
     use_full_res_img = freg_reg_param["UseFullResImage"]
+    use_dog = freg_reg_param["UseDOG"]
 
     set_number_of_dask_workers(n_workers)
     struct = DatasetStructure()
@@ -405,6 +411,7 @@ def run_feature_reg(config, target_shape):
         tile_size,
         target_shape,
         use_full_res_img,
+        use_dog
     )
     new_ome_meta = struct.generate_new_metadata(target_shape)
     feature_reg_out_file_names = {
@@ -464,6 +471,7 @@ def run_opt_flow_reg(
     tile_size = optflow_reg_param["TileSize"]
     overlap = optflow_reg_param["Overlap"]
     use_full_res_img = optflow_reg_param["UseFullResImage"]
+    use_dog = optflow_reg_param["UseDOG"]
 
     need_to_run_freg = False
     if feature_reg in config["RegistrationParameters"]:
@@ -515,6 +523,7 @@ def run_opt_flow_reg(
         input_is_stack,
         save_to_stack,
         use_full_res_img,
+        use_dog
     )
     print("Finished\n")
     return
@@ -525,6 +534,8 @@ def main():
     config_path = parse_cmd_args()
     validate_config(config_path)
     config = read_yaml(config_path)
+    print("The input config:")
+    pprint(config, sort_dicts=False, indent=2)
 
     img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
     target_shape = get_target_shape(img_paths)

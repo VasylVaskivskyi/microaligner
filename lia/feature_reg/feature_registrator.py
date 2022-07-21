@@ -284,7 +284,9 @@ class FeatureRegistrator:
             sigmas = {1: (5, 9), 2: (4, 7), 4: (3, 5), 8: (2, 3), 16: (1, 2)}
         return sigmas[pyr_factor]
 
-    def dog(self, img: Image, use_it: bool, low_sigma: int = 5, high_sigma: int = 9) -> Image:
+    def dog(
+        self, img: Image, use_it: bool, low_sigma: int = 5, high_sigma: int = 9
+    ) -> Image:
         """Difference of Gaussian filters"""
         if not use_it:
             return img

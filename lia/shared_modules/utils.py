@@ -18,7 +18,7 @@
 import gc
 from copy import deepcopy
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import cv2 as cv
 import dask
@@ -66,13 +66,25 @@ def pad_to_shape(
         return padded_img, padding
 
 
-def read_and_max_project_pages(img_path: Path, tiff_pages: List[int]) -> Image:
-    max_proj = tif.imread(path_to_str(img_path), key=tiff_pages[0])
+def read_and_max_project_pages(
+    img_paths: Dict[int, Path], tiff_pages: Dict[int, int]
+) -> Image:
+    img_paths2 = img_paths.copy()
+    tiff_pages2 = tiff_pages.copy()
 
-    if len(tiff_pages) > 1:
-        del tiff_pages[0]
-        for p in tiff_pages:
-            max_proj = np.maximum(max_proj, tif.imread(path_to_str(img_path), key=p))
+    first_z = list(img_paths2.keys())[0]
+    img_path = img_paths2[first_z]
+    tiff_page = tiff_pages2[first_z]
+    max_proj = tif.imread(path_to_str(img_path), key=tiff_page)
+
+    if len(img_paths2) > 1:
+        del img_paths2[first_z], tiff_pages2[first_z]
+        for z in img_paths2:
+            img_path = img_paths2[z]
+            tiff_page = tiff_pages2[z]
+            max_proj = np.maximum(
+                max_proj, tif.imread(path_to_str(img_path), key=tiff_page)
+            )
     max_proj = cv.normalize(max_proj, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U)
     return max_proj
 

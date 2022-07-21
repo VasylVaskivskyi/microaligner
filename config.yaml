@@ -1,15 +1,39 @@
 # Input
-# List of input images, each having same number of channels, arranged in the same order
+# List of input images, each having same number of channels, arranged in the same order.
+# Simplest input format is a list of image paths:
+# InputImagePaths:
+#   - "img_path1"
+#   - "img_path2"
+#   - "img_path3"
+# InputIsCycleStack: false
+# InputIsStackBuilder: false
+
 # If your input image is a stack that contains all the cycles
 # write it in a format
 # InputImagePaths:
 #    - "stack_path"
 # InputIsCycleStack: true
+# InputIsStackBuilder: false
+
+# If your input is not structured as a multichannel stack, you can use
+# InputIsStackBuilder option. If file contains more than one page,
+#  they will be treated as z-planes.
+# InputImagePaths:
+#    - Cycle 1:
+#        DAPI: "img_path1"
+#        Cy5: "img_path2"
+#    - Cycle 2:
+#        DAPI: "img_path3"
+#        Cy5: "img_path4"
+#  InputIsCycleStack: false
+#  InputIsStackBuilder: true
 Input:
   InputImagePaths:
     - "img_path1"
     - "img_path2"
+    - "img_path3"
   InputIsCycleStack: false
+  InputIsStackBuilder: false
 
 # Output
 # Images will be saved to directory with the following patterns

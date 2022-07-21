@@ -50,18 +50,34 @@
             "type": "object",
             "required": [
                 "InputImagePaths",
-                "InputIsCycleStack"
+                "InputIsCycleStack",
+                "InputIsStackBuilder"
             ],
             "additionalProperties": false,
+
             "properties": {
-                "InputImagePaths": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "InputIsCycleStack": {
                     "type": "boolean"
+                },
+                "InputIsStackBuilder": {
+                    "type": "boolean"
+                },
+                "InputImagePaths": {
+                    "oneOf": [
+                        {"type": "array",
+                        "items": {
+                            "type": "string"}},
+                        {
+                        "type": "object",
+                        "items": {
+                            "type": "string",
+                            "minItems": 2
+                        },
+                        "additionalItems": {
+                            "type": "string"
+                        }
+                    }
+                    ]
                 }
             }
         },

@@ -131,8 +131,12 @@ class OptFlowRegistrator:
             if not any(is_higher_similarity):
                 print("    Worse alignment than before")
                 if lvl == 0:
-                    dstsize = list(mov_pyr[lvl + 1].shape)
-                    m_flow = np.zeros(dstsize + [2], dtype=np.float32)
+                    if len(factors) > 1:
+                        dstsize = list(mov_pyr[lvl + 1].shape)
+                        m_flow = np.zeros(dstsize + [2], dtype=np.float32)
+                    else:
+                        dstsize = list(mov_pyr[lvl].shape)
+                        m_flow = np.zeros(dstsize + [2], dtype=np.float32)
                 else:
                     dstsize = mov_pyr[lvl + 1].shape[::-1]
                     m_flow = cv.pyrUp(m_flow * 2, dstsize=dstsize)
@@ -230,7 +234,9 @@ class OptFlowRegistrator:
             sigmas = {1: (5, 9), 2: (4, 7), 4: (3, 5), 8: (2, 3), 16: (1, 2)}
         return sigmas[pyr_factor]
 
-    def dog(self, img: Image, use_it: bool, low_sigma: int = 5, high_sigma: int = 9) -> Image:
+    def dog(
+        self, img: Image, use_it: bool, low_sigma: int = 5, high_sigma: int = 9
+    ) -> Image:
         """Difference of Gaussian filters"""
         if not use_it:
             return img

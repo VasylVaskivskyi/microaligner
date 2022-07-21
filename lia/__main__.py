@@ -17,11 +17,12 @@
 
 import argparse
 import gc
+import re
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
 from pprint import pprint
+from typing import Any, Dict, List, Tuple
 
 import jsonschema
 import numpy as np
@@ -34,24 +35,32 @@ from .optflow_reg import OptFlowRegistrator, Warper
 from .shared_modules.config_schema_container import config_schema
 from .shared_modules.dtype_aliases import Flow, Image, Padding, Shape2D, TMat
 from .shared_modules.img_checks import check_number_of_input_img_paths
-from .shared_modules.metadata_handling import DatasetStructure
+from .shared_modules.metadata_handling import (DatasetStruct,
+                                               DatasetStructCreator)
+from .shared_modules.ome_meta_processing import create_new_meta
+from .shared_modules.stack_builder import process_cycle_map
 from .shared_modules.utils import (pad_to_shape, path_to_str,
                                    read_and_max_project_pages,
                                    set_number_of_dask_workers,
                                    transform_img_with_tmat)
 
 
+def get_first_element_of_dict(dictionary: dict):
+    first_key = list(dictionary.keys())[0]
+    return dictionary[first_key]
+
+
 def save_param(
-    img_paths: List[Path],
+    cycle_list: List[int],
     out_dir: Path,
     tmat_per_cycle_flat: List[TMat],
     padding_per_cycle: List[Padding],
     image_shape: Shape2D,
 ):
     transform_table = pd.DataFrame(tmat_per_cycle_flat)
-    for i in transform_table.index:
-        dataset_name = "dataset_{id}_{name}".format(id=i + 1, name=img_paths[i].parent)
-        transform_table.loc[i, "name"] = dataset_name
+    for i, _id in enumerate(transform_table.index):
+        dataset_name = f"Cycle{cycle_list[i]}"
+        transform_table.loc[_id, "name"] = dataset_name
     cols = transform_table.columns.to_list()
     cols = cols[-1:] + cols[:-1]
     transform_table = transform_table[cols]
@@ -67,23 +76,24 @@ def save_param(
 
 
 def transform_and_save_zplanes(
-    reader: tif.TiffReader,
     writer: tif.TiffWriter,
     target_shape: Shape2D,
     transform_matrix: TMat,
-    zplane_pages: List[int],
+    img_paths: Dict[int, Path],
+    tiff_pages: Dict[int, int],
     max_zplanes: int,
     ome_meta: str,
 ):
-    for p in zplane_pages:
-        img = reader.asarray(key=p)
+    for z, img_path in img_paths.items():
+        img = tif.imread(path_to_str(img_path), key=tiff_pages[z])
 
         img = transform_img_with_tmat(img, target_shape, transform_matrix)
         writer.write(
             img, contiguous=True, photometric="minisblack", description=ome_meta
         )
         gc.collect()
-    num_zplanes = len(zplane_pages)
+
+    num_zplanes = len(tiff_pages)
     if num_zplanes < max_zplanes:
         diff = max_zplanes - num_zplanes
         empty_page = np.zeros_like(img)
@@ -101,59 +111,61 @@ def transform_and_save_zplanes(
 
 
 def transform_and_save_freg_imgs(
-    dataset_structure: Dict[Any, Any],
+    dataset_struct: DatasetStruct,
     out_dir: Path,
     filenames: Dict[str, str],
     target_shape: Shape2D,
     transform_matrices: List[TMat],
-    ome_meta_per_cyc: Dict[Path, str],
+    ome_meta_per_cyc: Dict[int, str],
     input_is_stack: bool,
     save_to_stack: bool,
 ):
     print("Transforming images")
-    input_img_paths = [dataset_structure[cyc]["img_path"] for cyc in dataset_structure]
+
+    cycles = list(dataset_struct.tiff_pages.keys())
+    first_cycle = cycles[0]
+    ncycles = len(cycles)
 
     if input_is_stack:
-        with tif.TiffFile(path_to_str(input_img_paths[0])) as TF:
+        first_cycle_paths = dataset_struct.img_paths[first_cycle]
+        zplane_paths = get_first_element_of_dict(first_cycle_paths)
+        img_path = get_first_element_of_dict(zplane_paths)
+        with tif.TiffFile(path_to_str(img_path)) as TF:
             ome_meta = TF.ome_metadata
 
-    ncycles = len(dataset_structure.keys())
-    nzplanes = {
-        cyc: len(dataset_structure[cyc]["img_structure"][0].keys())
-        for cyc in dataset_structure
-    }
-    max_zplanes = max(nzplanes.values())
+    nzplanes_per_cyc = []
+    for cyc in dataset_struct.tiff_pages:
+        for ch in dataset_struct.tiff_pages[cyc]:
+            nzplanes_per_cyc.append(len(dataset_struct.tiff_pages[cyc][ch]))
+
+    max_zplanes = max(nzplanes_per_cyc)
     if save_to_stack:
         output_path = out_dir / filenames["stack"]
         TW = tif.TiffWriter(output_path, bigtiff=True)
-        ome_meta = ome_meta_per_cyc[Path("combined")]
+        ome_meta = ome_meta_per_cyc[0]
 
-    for cyc in dataset_structure:
+    for cyc in dataset_struct.tiff_pages:
         print(f"Transforming and saving image {cyc + 1}/{ncycles}")
-        img_path = dataset_structure[cyc]["img_path"]
-
         if not save_to_stack:
             filename = filenames["per_cycle"].format(cyc=cyc + 1)
             cyc_out_path = out_dir / filename
             TW = tif.TiffWriter(cyc_out_path, bigtiff=True)
-            ome_meta = ome_meta_per_cyc[img_path]
+            ome_meta = ome_meta_per_cyc[cyc]
 
-        TF = tif.TiffFile(img_path)
         transform_matrix = transform_matrices[cyc]
 
-        img_structure = dataset_structure[cyc]["img_structure"]
-        for channel in img_structure:
-            zplane_pages = list(img_structure[channel].values())
+        for ch in dataset_struct.tiff_pages[cyc]:
+            tiff_pages = dataset_struct.tiff_pages[cyc][ch]
+            img_paths = dataset_struct.img_paths[cyc][ch]
             transform_and_save_zplanes(
-                TF,
                 TW,
                 target_shape,
                 transform_matrix,
-                zplane_pages,
+                img_paths,
+                tiff_pages,
                 max_zplanes,
                 ome_meta,
             )
-        TF.close()
         if not save_to_stack:
             TW.close()
     if save_to_stack:
@@ -177,7 +189,7 @@ def get_target_shape(img_paths: List[Path]) -> Shape2D:
 
 
 def do_feature_reg(
-    dataset_structure: dict,
+    dataset_struct: DatasetStruct,
     ref_cycle_id: int,
     num_pyr_lvl: int,
     num_iter: int,
@@ -196,28 +208,26 @@ def do_feature_reg(
     tmat_per_cycle = []
     padding = []
     identity_matrix = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
-    ncycles = len(dataset_structure)
 
-    ref_channel_id = dataset_structure[ref_cycle_id]["ref_channel_id"]
-    img_path = dataset_structure[ref_cycle_id]["img_path"]
-    ref_pages = list(
-        dataset_structure[ref_cycle_id]["img_structure"][ref_channel_id].values()
-    )
-    freg.ref_img = read_and_max_project_pages(img_path, ref_pages)
+    ref_channel_id = dataset_struct.ref_channel_ids[ref_cycle_id]
+    tiff_pages = dataset_struct.tiff_pages[ref_cycle_id][ref_channel_id]
+    img_paths = dataset_struct.img_paths[ref_cycle_id][ref_channel_id]
+    freg.ref_img = read_and_max_project_pages(img_paths, tiff_pages)
 
-    for cyc in dataset_structure:
+    cycles = list(dataset_struct.tiff_pages.keys())
+    ncycles = len(cycles)
+    for cyc in cycles:
         print(f"Processing image {cyc + 1}/{ncycles}")
-        img_structure = dataset_structure[cyc]["img_structure"]
-        ref_channel_id = dataset_structure[cyc]["ref_channel_id"]
-        img_path = dataset_structure[cyc]["img_path"]
-
         if cyc == ref_cycle_id:
             print("Skipping as it is a reference image")
             tmat_per_cycle.append(identity_matrix)
             padding.append((0, 0, 0, 0))
         else:
-            mov_img_tiff_pages = list(img_structure[ref_channel_id].values())
-            mov_img = read_and_max_project_pages(img_path, mov_img_tiff_pages)
+            ref_channel_id = dataset_struct.ref_channel_ids[cyc]
+            tiff_pages = dataset_struct.tiff_pages[cyc][ref_channel_id]
+            img_paths = dataset_struct.img_paths[cyc][ref_channel_id]
+
+            mov_img = read_and_max_project_pages(img_paths, tiff_pages)
             gc.collect()
 
             mov_img, pad = pad_to_shape(mov_img, target_shape)
@@ -233,43 +243,48 @@ def do_feature_reg(
 
 def warp_and_save_pages(
     writer: tif.TiffWriter,
-    flow: Flow,
-    in_path: Path,
-    meta: str,
-    pages: List[int],
     warper: Warper,
+    flow: Flow,
+    img_paths: Dict[int, Path],
+    tiff_pages: Dict[int, int],
+    ome_meta: str,
 ):
-    for p in pages:
-        warper.image = tif.imread(in_path, key=p)
+    for z in img_paths:
+        warper.image = tif.imread(path_to_str(img_paths[z]), key=tiff_pages[z])
         warper.flow = flow
         warped_img = warper.warp()
         writer.write(
             warped_img,
             contiguous=True,
             photometric="minisblack",
-            description=meta,
+            description=ome_meta,
         )
 
 
-def save_pages(writer: tif.TiffWriter, in_path: Path, meta: str, pages: List[int]):
-    for p in pages:
+def save_pages(
+    writer: tif.TiffWriter,
+    img_paths: Dict[int, Path],
+    tiff_pages: Dict[int, int],
+    ome_meta: str,
+):
+    for z in img_paths:
         writer.write(
-            tif.imread(in_path, key=p),
+            tif.imread(path_to_str(img_paths[z]), key=tiff_pages[z]),
             contiguous=True,
             photometric="minisblack",
-            description=meta,
+            description=ome_meta,
         )
 
 
 def register_and_save_ofreg_imgs(
-    dataset_structure: dict,
+    dataset_struct: DatasetStruct,
     out_dir: Path,
     filenames: Dict[str, str],
     tile_size: int,
     overlap: int,
     num_pyr_lvl: int,
     num_iter: int,
-    ome_meta_per_cyc: Dict[Path, str],
+    ome_meta_per_cyc: Dict[int, str],
     input_is_stack: bool,
     save_to_stack: bool,
     use_full_res_img: bool,
@@ -290,44 +305,46 @@ def register_and_save_ofreg_imgs(
     warper.tile_size = tile_size
     warper.overlap = overlap
 
-    input_img_paths = [dataset_structure[cyc]["img_path"] for cyc in dataset_structure]
+    cycles = list(dataset_struct.tiff_pages.keys())
+    first_cycle = cycles[0]
+    ncycles = len(cycles)
 
     if input_is_stack:
-        with tif.TiffFile(path_to_str(input_img_paths[0])) as TF:
+        first_cycle_paths = dataset_struct.img_paths[first_cycle]
+        zplane_paths = get_first_element_of_dict(first_cycle_paths)
+        img_path = get_first_element_of_dict(zplane_paths)
+        with tif.TiffFile(path_to_str(img_path)) as TF:
             ome_meta = TF.ome_metadata
 
     if save_to_stack:
-        ome_meta = ome_meta_per_cyc[Path("combined")]
+        ome_meta = ome_meta_per_cyc[0]
         out_path = out_dir / filenames["stack"]
         TW = tif.TiffWriter(out_path, bigtiff=True)
 
-    ncycles = len(dataset_structure)
-
-    for cyc in dataset_structure:
+    for cyc in cycles:
         print(f"Processing image {cyc + 1}/{ncycles}")
-        this_cycle = dataset_structure[cyc]
-        img_path = this_cycle["img_path"]
-        ref_ch_id = this_cycle["ref_channel_id"]
         if not save_to_stack:
-            img_path = dataset_structure[cyc]["img_path"]
-            ome_meta = ome_meta_per_cyc[img_path]
-
+            ome_meta = ome_meta_per_cyc[cyc]
             filename = filenames["per_cycle"].format(cyc=cyc + 1)
             cyc_out_path = out_dir / filename
             TW = tif.TiffWriter(cyc_out_path, bigtiff=True)
 
-        if cyc == 0:
+        ref_ch_id = dataset_struct.ref_channel_ids[cyc]
+        img_paths: Dict[int, Path] = dataset_struct.img_paths[cyc][ref_ch_id]
+        tiff_pages: Dict[int, int] = dataset_struct.tiff_pages[cyc][ref_ch_id]
+
+        if cyc == first_cycle:
             print("Skipping as it is a reference image")
-            ref_pages = list(this_cycle["img_structure"][ref_ch_id].values())
-            ref_img = read_and_max_project_pages(img_path, ref_pages)
+            ref_img = read_and_max_project_pages(img_paths, tiff_pages)
 
             print(f"Saving image {cyc + 1}/{ncycles}")
-            for ch in this_cycle["img_structure"]:
-                pages = list(this_cycle["img_structure"][ch].values())
-                save_pages(TW, img_path, ome_meta, pages)
+            for ch in dataset_struct.tiff_pages[cyc]:
+                tiff_pages = dataset_struct.tiff_pages[cyc][ch]
+                img_paths = dataset_struct.img_paths[cyc][ch]
+                save_pages(TW, img_paths, tiff_pages, ome_meta)
         else:
-            mov_pages = list(this_cycle["img_structure"][ref_ch_id].values())
-            mov_img = read_and_max_project_pages(img_path, mov_pages)
+            # mov_pages = list(this_cycle["img_structure"][ref_ch_id].values())
+            mov_img = read_and_max_project_pages(img_paths, tiff_pages)
 
             ofreg.ref_img = ref_img  # comes from previous cycle
             ofreg.mov_img = mov_img
@@ -338,9 +355,10 @@ def register_and_save_ofreg_imgs(
             ref_img = warper.warp()  # will be used in the next cycle
 
             print(f"Saving image {cyc + 1}/{ncycles}")
-            for ch in this_cycle["img_structure"]:
-                pages = list(this_cycle["img_structure"][ch].values())
-                warp_and_save_pages(TW, flow, img_path, ome_meta, pages, warper)
+            for ch in dataset_struct.tiff_pages[cyc]:
+                tiff_pages = dataset_struct.tiff_pages[cyc][ch]
+                img_paths = dataset_struct.img_paths[cyc][ch]
+                warp_and_save_pages(TW, warper, flow, img_paths, tiff_pages, ome_meta)
         if not save_to_stack:
             TW.close()
     if save_to_stack:
@@ -362,9 +380,15 @@ def validate_config(config_path: Path):
     config = read_yaml(config_path)
     jsonschema.validate(config, config_schema)
     missing_imgs = []
-    for img_path in config["Input"]["InputImagePaths"]:
-        if not Path(img_path).exists():
-            missing_imgs.append(img_path)
+    if config["Input"]["InputIsStackBuilder"]:
+        for cyc in config["Input"]["InputImagePaths"]:
+            for ch, img_path in config["Input"]["InputImagePaths"][cyc].items():
+                if not Path(img_path).exists():
+                    missing_imgs.append(img_path)
+    else:
+        for img_path in config["Input"]["InputImagePaths"]:
+            if not Path(img_path).exists():
+                missing_imgs.append(img_path)
     if missing_imgs != []:
         msg = f"These input images are not found: {missing_imgs}"
         raise FileNotFoundError(msg)
@@ -383,9 +407,10 @@ def read_yaml(path: Path) -> dict:
 def run_feature_reg(config, target_shape):
     print("Performing linear feature based image registration")
 
-    img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
+    img_paths = config["Input"]["InputImagePaths"]
     input_is_stack = config["Input"]["InputIsCycleStack"]
-    save_to_stack = config["Output"]["SaveOutputToCycleStack"]
+    input_is_stack_builder = config["Input"]["InputIsStackBuilder"]
+    output_is_stack = config["Output"]["SaveOutputToCycleStack"]
     out_dir = Path(config["Output"]["OutputDir"])
     ref_cycle_id = config["DataStructure"]["ReferenceImage"]
 
@@ -398,44 +423,49 @@ def run_feature_reg(config, target_shape):
     use_dog = freg_reg_param["UseDOG"]
 
     set_number_of_dask_workers(n_workers)
-    struct = DatasetStructure()
+    struct = DatasetStructCreator()
     struct.img_paths = img_paths
     struct.is_stack = input_is_stack
-    struct.output_is_stack = save_to_stack
-    dataset_structure = struct.get_dataset_structure()
+    struct.input_is_stack_builder = input_is_stack_builder
+    struct.output_is_stack = output_is_stack
+    dataset_struct = struct.create_dataset_struct()
     tmat_per_cycle, padding_per_cycle = do_feature_reg(
-        dataset_structure,
+        dataset_struct,
         ref_cycle_id,
         num_pyr_lvl,
         num_iter,
         tile_size,
         target_shape,
         use_full_res_img,
-        use_dog
+        use_dog,
     )
-    new_ome_meta = struct.generate_new_metadata(target_shape)
+    new_ome_meta = create_new_meta(
+        dataset_struct.ome_xmls, target_shape, input_is_stack, output_is_stack
+    )
     feature_reg_out_file_names = {
         "stack": "feature_reg_result_stack.tif",
         "per_cycle": "feature_reg_result_cyc{cyc:03d}.tif",
     }
     transform_and_save_freg_imgs(
-        dataset_structure,
+        dataset_struct,
         out_dir,
         feature_reg_out_file_names,
         target_shape,
         tmat_per_cycle,
         new_ome_meta,
         input_is_stack,
-        save_to_stack,
+        output_is_stack,
     )
     tmat_per_cycle_flat = [M.flatten() for M in tmat_per_cycle]
-    img_paths = [dataset_structure[cyc]["img_path"] for cyc in dataset_structure]
-    save_param(img_paths, out_dir, tmat_per_cycle_flat, padding_per_cycle, target_shape)
-    if save_to_stack:
+    cycle_list = [cyc for cyc in dataset_struct.img_paths]
+    save_param(
+        cycle_list, out_dir, tmat_per_cycle_flat, padding_per_cycle, target_shape
+    )
+    if output_is_stack:
         img_paths = [out_dir / feature_reg_out_file_names["stack"]]
     else:
         img_paths = []
-        for cyc in dataset_structure:
+        for cyc in dataset_struct.img_paths:
             filename = feature_reg_out_file_names["per_cycle"].format(cyc=cyc + 1)
             img_paths.append(out_dir / filename)
     print("Finished\n")
@@ -460,7 +490,8 @@ def run_opt_flow_reg(
     config, feature_reg: str, img_paths: List[Path], target_shape: Shape2D
 ):
     input_is_stack = config["Input"]["InputIsCycleStack"]
-    save_to_stack = config["Output"]["SaveOutputToCycleStack"]
+    input_is_stack_builder = config["Input"]["InputIsStackBuilder"]
+    output_is_stack = config["Output"]["SaveOutputToCycleStack"]
     out_dir = Path(config["Output"]["OutputDir"])
     ref_cycle_id = config["DataStructure"]["ReferenceImage"]
 
@@ -475,44 +506,52 @@ def run_opt_flow_reg(
 
     need_to_run_freg = False
     if feature_reg in config["RegistrationParameters"]:
-        input_is_stack_of = save_to_stack
-        img_paths = img_paths
-        dims_match = check_input_img_dims_match(img_paths)
-        if not dims_match:
-            msg = f"Something went wrong because images have different shape after performing {feature_reg}"
-            raise Exception(msg)
+        input_is_stack_of = output_is_stack
+        input_is_stack_builder = False
+        if input_is_stack_of:
+            img_paths = img_paths[0]
+        else:
+            dims_match = check_input_img_dims_match(img_paths)
+            if not dims_match:
+                msg = f"Something went wrong because images have different shape after performing {feature_reg}"
+                raise Exception(msg)
     else:
         input_is_stack_of = input_is_stack
         img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
-        dims_match = check_input_img_dims_match(img_paths)
-        if not dims_match:
-            print(
-                "Image dimensions do not match. "
-                + "This probably means that they are not aligned. "
-                + "Will try to perform FeatureReg first"
-            )
-            config["RegistrationParameters"][feature_reg] = optflow_reg_param
-            need_to_run_freg = True
+        if not input_is_stack_of:
+            dims_match = check_input_img_dims_match(img_paths)
+            if not dims_match:
+                print(
+                    "Image dimensions do not match. "
+                    + "This probably means that they are not aligned. "
+                    + "Will try to perform FeatureReg first"
+                )
+                config["RegistrationParameters"][feature_reg] = optflow_reg_param
+                need_to_run_freg = True
 
     if need_to_run_freg:
         img_paths = run_feature_reg(config, target_shape)
-        input_is_stack_of = save_to_stack
+        input_is_stack_of = output_is_stack
 
     set_number_of_dask_workers(n_workers)
 
-    struct = DatasetStructure()
+    struct = DatasetStructCreator()
     struct.img_paths = img_paths
     struct.input_is_stack = input_is_stack_of
-    struct.output_is_stack = save_to_stack
-    new_dataset_structure = struct.get_dataset_structure()
-    new_ome_meta = struct.generate_new_metadata(target_shape)
+    struct.input_is_stack_builder = input_is_stack_builder
+    struct.output_is_stack = output_is_stack
+    new_dataset_struct = struct.create_dataset_struct()
+
+    new_ome_meta = create_new_meta(
+        new_dataset_struct.ome_xmls, target_shape, input_is_stack_of, output_is_stack
+    )
     optflow_reg_out_file_names = {
         "stack": "optflow_reg_result_stack.tif",
         "per_cycle": "optflow_reg_result_cyc{cyc:03d}.tif",
     }
     print("Performing non-linear optical flow based image registration")
     register_and_save_ofreg_imgs(
-        new_dataset_structure,
+        new_dataset_struct,
         out_dir,
         optflow_reg_out_file_names,
         tile_size,
@@ -521,12 +560,44 @@ def run_opt_flow_reg(
         num_iter,
         new_ome_meta,
         input_is_stack,
-        save_to_stack,
+        output_is_stack,
         use_full_res_img,
-        use_dog
+        use_dog,
     )
     print("Finished\n")
     return
+
+
+def convert_config_str_to_path(config: dict):
+    config_copy = deepcopy(config)
+    if config["Input"]["InputIsStackBuilder"]:
+        cycle_map_raw = config["Input"]["InputImagePaths"]
+        cycle_map_paths = deepcopy(cycle_map_raw)
+        for cyc in cycle_map_raw:
+            for ch, path_str in cycle_map_raw[cyc].items():
+                cycle_map_paths[cyc][ch] = Path(path_str)
+        config_copy["Input"]["InputImagePaths"] = cycle_map_paths
+    elif config["Input"]["InputIsCycleStack"]:
+        config_copy["Input"]["InputImagePaths"] = Path(
+            config["Input"]["InputImagePaths"]
+        )
+    else:
+        config_copy["Input"]["InputImagePaths"] = [
+            Path(p) for p in config["Input"]["InputImagePaths"]
+        ]
+    return config_copy
+
+
+def get_img_path_list(config: dict) -> List[Path]:
+    img_paths = []
+    if config["Input"]["InputIsStackBuilder"]:
+        cycle_map_raw = config["Input"]["InputImagePaths"]
+        for cyc in cycle_map_raw:
+            for ch in cycle_map_raw[cyc]:
+                img_paths.append(cycle_map_raw[cyc][ch])
+    else:
+        img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
+    return img_paths
 
 
 def main():
@@ -537,12 +608,14 @@ def main():
     print("The input config:")
     pprint(config, sort_dicts=False, indent=2)
 
-    img_paths = [Path(p) for p in config["Input"]["InputImagePaths"]]
-    target_shape = get_target_shape(img_paths)
+    img_path_list = get_img_path_list(config)
+    target_shape = get_target_shape(img_path_list)
+    config = convert_config_str_to_path(config)
 
     feature_reg = "FeatureReg"
     opt_flow_reg = "OptFlowReg"
 
+    img_paths = config["Input"]["InputImagePaths"]
     if feature_reg in config["RegistrationParameters"]:
         img_paths = run_feature_reg(config, target_shape)
 

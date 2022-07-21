@@ -15,6 +15,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import xml.etree.ElementTree as ET
 from typing import Tuple
 
 import numpy as np
@@ -37,3 +38,5 @@ Shape2D = Tuple[int, int]
 
 # values used for padding (left, right, top, bottom)
 Padding = Tuple[int, int, int, int]
+
+XML = ET.Element

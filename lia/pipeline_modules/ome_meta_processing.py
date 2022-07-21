@@ -24,8 +24,8 @@ from typing import Any, Dict, List, Tuple, Union
 
 import tifffile as tif
 
-from .dtype_aliases import XML, Shape2D
-from .utils import path_to_str
+from ..shared_modules.dtype_aliases import XML, Shape2D
+from ..shared_modules.utils import path_to_str
 
 
 def str_to_xml(xmlstr: str) -> XML:

@@ -23,7 +23,7 @@ from typing import Dict, List
 
 import tifffile as tif
 
-from .dtype_aliases import XML
+from ..shared_modules.dtype_aliases import XML
 
 
 def str_to_xml(xmlstr: str) -> XML:

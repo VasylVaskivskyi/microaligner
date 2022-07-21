@@ -21,11 +21,11 @@ from typing import Any, Dict, List, Union
 
 import tifffile as tif
 
-from .dtype_aliases import XML, Shape2D
+from ..shared_modules.dtype_aliases import XML, Shape2D
 from .ome_meta_processing import (_strip_cycle_info, collect_info_from_ome,
                                   read_ome_meta_from_file)
 from .stack_builder import generate_ome_for_cycle_builder
-from .utils import path_to_str
+from ..shared_modules.utils import path_to_str
 
 
 @dataclass

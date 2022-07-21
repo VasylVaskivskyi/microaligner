@@ -17,12 +17,10 @@
 
 import argparse
 import gc
-import re
 from copy import deepcopy
-from datetime import datetime
 from pathlib import Path
 from pprint import pprint
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 import jsonschema
 import numpy as np
@@ -32,13 +30,12 @@ import yaml
 
 from .feature_reg import FeatureRegistrator
 from .optflow_reg import OptFlowRegistrator, Warper
-from .shared_modules.config_schema_container import config_schema
-from .shared_modules.dtype_aliases import Flow, Image, Padding, Shape2D, TMat
+from .pipeline_modules.config_schema_container import config_schema
+from .shared_modules.dtype_aliases import Flow, Padding, Shape2D, TMat
 from .shared_modules.img_checks import check_number_of_input_img_paths
-from .shared_modules.metadata_handling import (DatasetStruct,
-                                               DatasetStructCreator)
-from .shared_modules.ome_meta_processing import create_new_meta
-from .shared_modules.stack_builder import process_cycle_map
+from .pipeline_modules.metadata_handling import (DatasetStruct,
+                                                    DatasetStructCreator)
+from .pipeline_modules.ome_meta_processing import create_new_meta
 from .shared_modules.utils import (pad_to_shape, path_to_str,
                                    read_and_max_project_pages,
                                    set_number_of_dask_workers,

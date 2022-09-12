@@ -20,6 +20,7 @@ import re
 import xml.etree.ElementTree as ET
 from io import StringIO
 from typing import Dict, List
+from pathlib import Path
 
 import tifffile as tif
 
@@ -64,7 +65,7 @@ def process_cycle_map(
     return processed_cycle_map
 
 
-def get_image_dims(path: str) -> Dict[str, int]:
+def get_image_dims(path: Path) -> Dict[str, int]:
     with tif.TiffFile(path) as TF:
         image_shape = list(TF.series[0].shape)
         image_dims = list(TF.series[0].axes)
@@ -80,7 +81,7 @@ def get_image_dims(path: str) -> Dict[str, int]:
 
 
 def get_dimensions_per_cycle(
-    cycle_map: Dict[int, Dict[str, str]]
+    cycle_map: Dict[int, Dict[str, Path]]
 ) -> Dict[int, Dict[str, int]]:
     dimensions_per_cycle = dict()
     for cycle in cycle_map:
@@ -148,7 +149,7 @@ def generate_default_pixel_attributes(img_path: str) -> Dict[str, str]:
 
 
 def generate_ome_meta_per_cycle(
-    cycle_map: Dict[int, Dict[str, str]],
+    cycle_map: Dict[int, Dict[str, Path]],
     img_dims_per_cycle: Dict[int, Dict[str, int]],
     pixels_attrib: dict,
 ) -> Dict[int, XML]:
@@ -197,9 +198,8 @@ def generate_ome_meta_per_cycle(
 
 
 def generate_ome_for_cycle_builder(
-    raw_cycle_map: Dict[str, Dict[str, str]]
+    cycle_map: Dict[int, Dict[str, Path]]
 ) -> Dict[int, XML]:
-    cycle_map = process_cycle_map(raw_cycle_map)
     first_cycle_channels = get_first_element_of_dict(cycle_map)
     first_channel_path = list(first_cycle_channels.values())[0]
 

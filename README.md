@@ -1,11 +1,36 @@
 ## LIA: Large image aligner for microscopy images
 
-It efficiently performs alignment (registration) of gigapixel size images.
-It is scalable - the more cores you have the faster it works.
-There are two main classes that can do alignment, and also a pipeline that can run both of them based 
+- Automatic, no need to manually select points of interest
+- Fast, most of internal tasks are parallelized
+- Memory efficient, works on gigapixel size images
+- Scalable, the more cores you have the faster it works
+- Linear and non-linear alignment, gives best results together in that order
+
+There are two main methods that can do alignment, and also a pipeline that can run both of them based 
 on parameters provided in a config file.
 
-Images with z-planes are projected along the z-plane before performing registration.
+### Methods:
+
+Affine feature based registration method first finds image features using `FAST` feature finder. It detects areas with 
+large intensity changes. After that a `DAISY` feature descriptor collects histograms of oriented gradients
+for each found feature. Then the described features are matched using `FLANN` based `knn` matcher that finds 
+correspondence between features of reference and moving images. The matches are filtered according to the distance between the neighbours.
+Finally, the coordinates of matched features are aligned using `RANSAC` algorithm and the affine transformation is computed.
+This method is good for aligning large linear drifts across images. 
+
+Non-linear optical flow based registration uses `Farneback` method that looks for pixels with the highest similarity in the given window.
+Then for each pixel it computes a 2D vector that describes movement of the pixel from one image to the other. 
+This method is good for aligning of small local shifts across images.
+
+If you have uneven illumination across the image, and it affects the registration quality, 
+you can try to tackle that by enabling image preprocessing with `difference of Gaussians` (`DOG`). 
+It will extract information about strong gradients near the edges
+and discard gradual changes caused by uneven illumination.
+
+### Pipeline:
+
+If images have z-planes, the script perform maximum intensity projection along the z dimension
+before doing the registration, so the alignment happens only in X-Y coordinates.
 
 ### Installation
 
@@ -52,7 +77,7 @@ For details about the config parameters please refer to the example `config.yaml
 
 ### Acknowledgments
 
-This package could never have been developed without thorough battle-testing by 
+This package could have never been developed without thorough battle-testing by 
 [Tong Li](https://github.com/BioinfoTongLI) 
 and [Jun Sung Park](https://github.com/jpark27), 
 and guidance from [Omer Bayraktar](https://github.com/oabayraktar).

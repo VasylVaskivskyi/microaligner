@@ -2,38 +2,45 @@
 # List of input images, each having same number of channels, arranged in the same order.
 # Simplest input format is a list of image paths:
 # InputImagePaths:
-#   - "img_path1"
-#   - "img_path2"
-#   - "img_path3"
-# InputIsCycleStack: false
-# InputIsStackBuilder: false
+#   Cycle 1: "img_path1"
+#   Cycle 2: "img_path2"
+#   Cycle 3: "img_path3"
 
 # If your input image is a stack that contains all the cycles
 # write it in a format
 # InputImagePaths:
-#    - "stack_path"
-# InputIsCycleStack: true
-# InputIsStackBuilder: false
+#    CycleStack: "stack_path"
 
-# If your input is not structured as a multichannel stack, you can use
-# InputIsStackBuilder option. If file contains more than one page,
-#  they will be treated as z-planes.
+# If your input is not structured as a multichannel stack, you can use specify
+# individual channels per cycle like described bellow.
+# If file contains more than one page, they will be treated as z-planes.
 # InputImagePaths:
-#    - Cycle 1:
+#    Cycle 1:
 #        DAPI: "img_path1"
 #        Cy5: "img_path2"
-#    - Cycle 2:
+#    Cycle 2:
 #        DAPI: "img_path3"
 #        Cy5: "img_path4"
-#  InputIsCycleStack: false
-#  InputIsStackBuilder: true
+
+# ReferenceCycle indicates which cycle to use as reference for alignment of
+# all other cycles.
+# If all your cycles are in a stack, ReferenceCycle would mean
+# which round of imaging in stack to use.
+# Cycle ids start from 1.
+# Cycle images must have the same number of channels, arranged in the same order,
+# Such that ReferenceChannel e.g. DAPI, is in the same position in the cycle, for example:
+# Cycle1: DAPI, CD4, CD3, CD45
+# Cycle2: DAPI, PanKeratin, Tubulin, Ki67
+# ReferenceChannel, has to be present in all rounds.
+# At the moment you cannot mix different input methods.
+
 Input:
   InputImagePaths:
-    - "img_path1"
-    - "img_path2"
-    - "img_path3"
-  InputIsCycleStack: false
-  InputIsStackBuilder: false
+    Cycle 1: "img_path"
+    Cycle 2: "img_path2"
+    Cycle 3: "img_path2"
+  ReferenceCycle: 1
+  ReferenceChannel: "DAPI"
 
 # Output
 # Images will be saved to directory with the following patterns
@@ -41,24 +48,13 @@ Input:
 # feature_reg_result_stack.tif and optflow_reg_result_stack.tif
 # If SaveOutputToCycleStack: false
 # feature_reg_result_cyc001.tif and optflow_reg_result_cyc001.tif
+# OutputPrefix will be added to each image name.
+# You can specify OutputPrefix: "" if you don't want to add anything to output names.
+
 Output:
   OutputDir: "/path/to/out/registered_imgs"
+  OutputPrefix: "experiment_001_"
   SaveOutputToCycleStack: true
-
-# DataStructure
-# ReferenceImage e.g. if your images are 1.tif 2.tif 3.tif,
-# and you reference image is 1.tif, then ReferenceImage: 0
-# Ids start from 0
-# Alternatively if your images are in a stack ReferenceImage would mean
-# which round of imaging in stack to use
-# Images must have the same number of channels, arranged in the same order in each cycle,
-# Such that reference channel e.g. DAPI, is in the same position in the cycle, e.g.
-# Cycle1: DAPI, CD4, CD3, CD45
-# Cycle2: DAPI, PanKeratin, Tubulin, Ki67
-# Channel to use for alignment, has to be present in all rounds.
-DataStructure:
-  ReferenceImage: 0
-  ReferenceChannel: "DAPI"
 
 # Parameters for registration parts
 # If you do not want to do optical flow or feature based registration
@@ -75,6 +71,7 @@ DataStructure:
 # UseDOG - apply difference of Gaussian filters to the images before performing
 #   registration. It may help for cases with uneven illumination. If you see
 #   too much deformation after registration, you may want to turn it off for OptFlowReg.
+
 RegistrationParameters:
   FeatureReg:
     NumberPyramidLevels: 3

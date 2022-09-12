@@ -101,6 +101,8 @@ class OptFlowRegistrator:
         ref_pyr, factors = self._generate_img_pyr(self._ref_img)
         mov_pyr, f_ = self._generate_img_pyr(self._mov_img)
 
+        # here lvl means a pyramid level starting from the smallest part of the pyramid
+        num_lvl = len(factors)
         for lvl, factor in enumerate(factors):
             print("Pyramid factor", factor)
             mov_this_lvl = mov_pyr[lvl].copy()
@@ -128,34 +130,44 @@ class OptFlowRegistrator:
                 self.dog(mov_pyr[lvl], True),
                 self.tile_size,
             )
-            if not any(is_higher_similarity):
-                print("    Worse alignment than before")
-                if lvl == 0:
-                    if len(factors) > 1:
-                        dstsize = list(mov_pyr[lvl + 1].shape)
-                        m_flow = np.zeros(dstsize + [2], dtype=np.float32)
-                    else:
-                        dstsize = list(mov_pyr[lvl].shape)
-                        m_flow = np.zeros(dstsize + [2], dtype=np.float32)
-                else:
-                    dstsize = mov_pyr[lvl + 1].shape[::-1]
-                    m_flow = cv.pyrUp(m_flow * 2, dstsize=dstsize)
-            else:
+
+            if any(is_higher_similarity):
                 print("    Better alignment than before")
                 # merge flows, upscale to next level
                 if lvl == 0:
-                    if len(factors) > 1:
+                    if num_lvl > 1:
                         dstsize = mov_pyr[lvl + 1].shape[::-1]
                         m_flow = cv.pyrUp(this_flow * 2, dstsize=dstsize)
                     else:
                         m_flow = self._upscale_flow_to_full_res(this_flow, factor)
-                elif lvl == len(factors) - 1:
+                elif lvl == num_lvl - 1:
                     m_flow = self._merge_list_of_flows([m_flow, this_flow])
+                    if not self.use_full_res_img:
+                        m_flow = self._upscale_flow_to_full_res(m_flow, factor)
                 else:
                     m_flow = self._merge_list_of_flows([m_flow, this_flow])
                     dstsize = mov_pyr[lvl + 1].shape[::-1]
                     m_flow = cv.pyrUp(m_flow * 2, dstsize=dstsize)
                 del this_flow
+            else:
+                print("    Worse alignment than before")
+                if lvl == 0:
+                    if num_lvl > 1:
+                        dstsize = list(mov_pyr[lvl + 1].shape)
+                        m_flow = np.zeros(dstsize + [2], dtype=np.float32)
+                    else:
+                        dstsize = list(self._mov_img.shape)
+                        m_flow = np.zeros(dstsize + [2], dtype=np.float32)
+                elif lvl == num_lvl - 1:
+                    if not self.use_full_res_img:
+                        dstsize = self._mov_img.shape[::-1]
+                        m_flow = cv.pyrUp(m_flow * 2, dstsize=dstsize)
+                    else:
+                        pass
+                else:
+                    dstsize = mov_pyr[lvl + 1].shape[::-1]
+                    m_flow = cv.pyrUp(m_flow * 4, dstsize=dstsize)
+
         del mov_pyr, ref_pyr
         gc.collect()
         return m_flow

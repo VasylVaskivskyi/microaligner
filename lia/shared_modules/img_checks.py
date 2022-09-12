@@ -41,7 +41,7 @@ def check_img_is_provided(img: Image, img_type: str):
 def check_img_dims_match(ref: Image, mov: Image):
     if ref.shape != mov.shape:
         msg = (
-            "Input image have different dimensions"
+            "Input images have different dimensions "
             + f"reference image shape: {ref.shape}, moving image shape: {mov.shape}"
         )
         raise ValueError(msg)

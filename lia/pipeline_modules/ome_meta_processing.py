@@ -167,8 +167,22 @@ def extract_sizes_from_xml_list(
     return sizes
 
 
-def create_channel_nodes(
-    ncycles: int, ome_info_list: List[Dict[str, Any]]
+def create_channel_nodes(channel_info: Dict[str, Any]) -> List[XML]:
+    channel_id = 0
+    channel_nodes = []
+    channels = deepcopy(channel_info["channels"])
+    channel_names = channel_info["channel_names"]
+
+    for ch in range(0, len(channels)):
+        new_channel_id = "Channel:0:" + str(channel_id)
+        channels[ch].set("Name", channel_names[ch])
+        channels[ch].set("ID", new_channel_id)
+        channel_nodes.append(channels[ch])
+        channel_id += 1
+    return channel_nodes
+
+
+def create_channel_nodes_list(ncycles: int, channel_info_list: List[Dict[str, Any]]
 ) -> List[XML]:
     digit_format = (
         "0" + str(len(str(ncycles)) + 1) + "d"
@@ -176,8 +190,8 @@ def create_channel_nodes(
     channel_id = 0
     channel_nodes = []
     for i in range(0, ncycles):
-        channels = deepcopy(ome_info_list[i]["channels"])
-        channel_names = ome_info_list[i]["channel_names"]
+        channels = deepcopy(channel_info_list[i]["channels"])
+        channel_names = channel_info_list[i]["channel_names"]
 
         # eg c02 DAPI
         cycle_prefix = "c" + format(i + 1, digit_format) + " "
@@ -216,7 +230,7 @@ def get_proper_ome_attribs() -> Dict[str, str]:
     proper_ome_attribs = {
         "xmlns": "http://www.openmicroscopy.org/Schemas/OME/2016-06",
         "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-        "xsi:schemaLocation": "http://www.openmicroscopy.org/Schemas/OME/2016-06 http://www.openmicroscopy.org/Schemas/OME/2016-06/ome.xsd",
+        "xsi:schemaLocation": "http://www.openmicr oscopy.org/Schemas/OME/2016-06 http://www.openmicroscopy.org/Schemas/OME/2016-06/ome.xsd",
     }
     return proper_ome_attribs
 
@@ -311,7 +325,7 @@ def create_combined_meta(
     ref_xml = remove_tiff_data_nodes(ref_xml)
 
     # add new channels
-    channel_info_list = create_channel_nodes(ncycles, channel_info_list)
+    channel_info_list = create_channel_nodes_list(ncycles, channel_info_list)
     for ch in channel_info_list:
         ref_xml.find("Image").find("Pixels").append(ch)
 
@@ -323,8 +337,78 @@ def create_combined_meta(
         ref_xml.find("Image").find("Pixels").append(td)
 
     result_ome_meta = xml_to_string(ref_xml)
-    combined_meta = {0: result_ome_meta}
+
+    combined_meta = dict()
+    for cyc in ome_meta_per_cyc:
+        combined_meta[cyc] = result_ome_meta
     return combined_meta
+
+
+def separate_stack_meta(ome_meta_per_cyc: Dict[int, XML], target_shape: Shape2D
+) -> Dict[int, str]:
+    old_xmls = dict()
+    ome_xml_list = []
+    for cyc, ome_xml in ome_meta_per_cyc.items():
+        old_xmls[cyc] = ome_xml
+        ome_xml_list.append(ome_xml)
+
+    sizes = extract_sizes_from_xml_list([ome_xml_list[0]], target_shape)
+    ncycles = len(ome_meta_per_cyc)
+    num_ch_per_cyc = int(round(sizes["SizeC"] / ncycles, 0))
+
+    n = 0
+    new_xmls = dict()
+    for cyc, old_xml in old_xmls.items():
+        sizes = extract_sizes_from_xml_list([old_xml], target_shape)
+        sizes["SizeC"] = num_ch_per_cyc
+
+        new_xml = deepcopy(old_xml)
+        for attr, val in sizes.items():
+            new_xml.find("Image").find("Pixels").set(attr, str(val))
+
+        # "channels": channels,
+        # "channel_names": channel_names,
+        # "channel_fluors": channel_fluors,
+        # "nchannels": nchannels,
+        # "nzplanes": nzplanes,
+
+        channel_info = _extract_channel_info(old_xml)
+        channel_slice = slice(n * num_ch_per_cyc, (n + 1) * num_ch_per_cyc)
+        channel_info["channels"] = channel_info["channels"][channel_slice]
+        channel_info["channel_names"] = channel_info["channel_names"][channel_slice]
+        channel_info["channel_fluors"] = channel_info["channel_fluors"][channel_slice]
+        channel_info["nchannels"] = num_ch_per_cyc
+
+        # remove old channels
+        old_channels = new_xml.find("Image").find("Pixels").findall("Channel")
+        for ch in old_channels:
+            new_xml.find("Image").find("Pixels").remove(ch)
+
+        # add new channels
+        channel_info_list = create_channel_nodes(channel_info)
+        for ch in channel_info_list:
+            new_xml.find("Image").find("Pixels").append(ch)
+
+        # add ome attribs
+        new_xml.attrib.clear()
+        proper_ome_attribs = get_proper_ome_attribs()
+        for attr, val in proper_ome_attribs.items():
+            new_xml.set(attr, val)
+
+        # remove old tiffdata
+        new_xml = remove_tiff_data_nodes(new_xml)
+
+        # add tiffdata
+        tiffdata_list = create_tiff_data_nodes(
+            sizes["SizeT"], sizes["SizeC"], sizes["SizeZ"]
+        )
+        for td in tiffdata_list:
+            new_xml.find("Image").find("Pixels").append(td)
+
+        result_ome_meta = xml_to_string(new_xml)
+        new_xmls[cyc] = result_ome_meta
+        n += 1
+    return new_xmls
 
 
 def create_new_meta(
@@ -334,9 +418,13 @@ def create_new_meta(
     output_is_stack: bool,
 ) -> Dict[int, str]:
     if input_is_stack and output_is_stack:
-        stack_meta_str = xml_to_string(ome_meta_per_cyc[0])
-        return {0: stack_meta_str}
-    if output_is_stack:
-        return create_combined_meta(ome_meta_per_cyc, target_shape)
+        new_ome_meta_str_per_cyc = dict()
+        for cyc in ome_meta_per_cyc:
+            new_ome_meta_str_per_cyc[cyc] = xml_to_string(ome_meta_per_cyc[cyc])
+    elif output_is_stack:
+        new_ome_meta_str_per_cyc = create_combined_meta(ome_meta_per_cyc, target_shape)
+    elif input_is_stack:
+        new_ome_meta_str_per_cyc = separate_stack_meta(ome_meta_per_cyc, target_shape)
     else:
-        return create_meta_for_each_img(ome_meta_per_cyc, target_shape)
+        new_ome_meta_str_per_cyc = create_meta_for_each_img(ome_meta_per_cyc, target_shape)
+    return new_ome_meta_str_per_cyc

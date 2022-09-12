@@ -61,6 +61,5 @@ setuptools.setup(
     python_requires=">=3.7",
     install_requires=package_list,
     include_package_data=True,
-    data_files=[("lia", ["shared_modules/config_schema.json"])],
     entry_points={"console_scripts": ["lia = lia.__main__:main"]},
 )

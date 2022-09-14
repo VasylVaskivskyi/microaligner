@@ -231,11 +231,7 @@ class PipelineConfigReader:
         check_field_dtype("OutputPrefix", str, output_dict)
         check_field_dtype("SaveOutputToCycleStack", bool, output_dict)
 
-        output_dir = Path(output_dict["OutputDir"])
-        if not output_dir.exists():
-            raise FileNotFoundError("OutputDir does not exist")
-
-        self.Output.OutputDir = output_dir
+        self.Output.OutputDir =  Path(output_dict["OutputDir"])
         self.Output.OutputPrefix = output_dict["OutputPrefix"]
         self.Output.SaveOutputToCycleStack = output_dict["SaveOutputToCycleStack"]
 

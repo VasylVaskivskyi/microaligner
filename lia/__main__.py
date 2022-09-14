@@ -552,6 +552,8 @@ def main():
     print("The input config is:")
     pprint(config, sort_dicts=False, indent=2)
 
+    if not config.Output.OutputDir.exists():
+        config.Output.OutputDir.mkdir(parents=True)
     img_path_list = get_img_path_list(config)
     target_shape = get_target_shape(img_path_list)
 

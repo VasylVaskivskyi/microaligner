@@ -85,7 +85,8 @@ class DatasetStructCreator:
                 ch_name = ch_names[ch - 1]
                 img_path = img_path_per_ch[ch_name]
                 for z in range(1, nzplanes + 1):
-                    tiff_pages[ch][z] = z
+                    tiff_page = z - 1
+                    tiff_pages[ch][z] = tiff_page
                     img_paths[ch][z] = img_path
 
             stack_builder_structure.tiff_pages[cyc] = tiff_pages

@@ -82,16 +82,14 @@ def read_and_max_project_pages(
     img_path = img_paths2[first_z]
     tiff_page = tiff_pages2[first_z]
     max_proj = read_tiff_page(img_path, tiff_page)
-    #max_proj = tif.imread(path_to_str(img_path), key=tiff_page)
+    # max_proj = tif.imread(path_to_str(img_path), key=tiff_page)
 
     if len(img_paths2) > 1:
         del img_paths2[first_z], tiff_pages2[first_z]
         for z in img_paths2:
             img_path = img_paths2[z]
             tiff_page = tiff_pages2[z]
-            max_proj = np.maximum(
-                max_proj, read_tiff_page(img_path, tiff_page)
-            )
+            max_proj = np.maximum(max_proj, read_tiff_page(img_path, tiff_page))
 
     max_proj = cv.normalize(max_proj, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U)
     return max_proj

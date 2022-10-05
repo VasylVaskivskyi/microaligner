@@ -19,8 +19,8 @@
 import re
 import xml.etree.ElementTree as ET
 from io import StringIO
-from typing import Dict, List
 from pathlib import Path
+from typing import Dict, List
 
 import tifffile as tif
 
@@ -82,8 +82,8 @@ def get_image_dims(path: Path) -> Dict[str, int]:
     z_size = image_dimensions["Z"]
 
     if sum((q_size > 1, c_size > 1, z_size > 1)) >= 2:
-            msg = f"The input image has too many dimensions"
-            raise ValueError(msg)
+        msg = f"The input image has too many dimensions"
+        raise ValueError(msg)
     else:
         higher_dims = ["Q", "C", "Z"]
         dim_val = 1
@@ -184,7 +184,7 @@ def generate_ome_meta_per_cycle(
         this_cycle_channels = generate_channel_meta(
             channel_names, cyc, channel_id_offset
         )
-        #channel_elements.extend(this_cycle_channels)
+        # channel_elements.extend(this_cycle_channels)
         channel_id_offset += num_channels
         tiffdata_elements = generate_tiffdata_meta(img_dims_per_cycle[cyc])
 

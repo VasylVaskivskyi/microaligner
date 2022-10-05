@@ -22,8 +22,8 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
-import tifffile as tif
 import pint
+import tifffile as tif
 
 from ..shared_modules.dtype_aliases import XML, Shape2D
 from ..shared_modules.utils import path_to_str
@@ -55,8 +55,12 @@ def _convert_resolution_to_nm(value: float, unit: str) -> float:
 
 
 def _convert_sizes(size_info: dict) -> dict:
-    phys_size_x_conv = _convert_resolution_to_nm(size_info["PhysicalSizeX"], size_info["PhysicalSizeXUnit"])
-    phys_size_y_conv = _convert_resolution_to_nm(size_info["PhysicalSizeY"], size_info["PhysicalSizeYUnit"])
+    phys_size_x_conv = _convert_resolution_to_nm(
+        size_info["PhysicalSizeX"], size_info["PhysicalSizeXUnit"]
+    )
+    phys_size_y_conv = _convert_resolution_to_nm(
+        size_info["PhysicalSizeY"], size_info["PhysicalSizeYUnit"]
+    )
     size_info["PhysicalSizeX"] = phys_size_x_conv
     size_info["PhysicalSizeY"] = phys_size_y_conv
     size_info["PhysicalSizeXUnit"] = "nm"
@@ -209,7 +213,8 @@ def create_channel_nodes(channel_info: Dict[str, Any]) -> List[XML]:
     return channel_nodes
 
 
-def create_channel_nodes_list(ncycles: int, channel_info_list: List[Dict[str, Any]]
+def create_channel_nodes_list(
+    ncycles: int, channel_info_list: List[Dict[str, Any]]
 ) -> List[XML]:
     digit_format = (
         "0" + str(len(str(ncycles)) + 1) + "d"
@@ -377,7 +382,8 @@ def create_combined_meta(
     return combined_meta
 
 
-def separate_stack_meta(ome_meta_per_cyc: Dict[int, XML], target_shape: Shape2D
+def separate_stack_meta(
+    ome_meta_per_cyc: Dict[int, XML], target_shape: Shape2D
 ) -> Dict[int, str]:
     new_dim_order = "XYZCT"
     old_xmls = dict()
@@ -461,5 +467,7 @@ def create_new_meta(
     elif input_is_stack:
         new_ome_meta_str_per_cyc = separate_stack_meta(ome_meta_per_cyc, target_shape)
     else:
-        new_ome_meta_str_per_cyc = create_meta_for_each_img(ome_meta_per_cyc, target_shape)
+        new_ome_meta_str_per_cyc = create_meta_for_each_img(
+            ome_meta_per_cyc, target_shape
+        )
     return new_ome_meta_str_per_cyc

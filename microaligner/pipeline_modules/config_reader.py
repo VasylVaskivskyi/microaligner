@@ -16,10 +16,10 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from pathlib import Path
-from copy import deepcopy
-from typing import Iterable, Union, Optional
 import re
+from copy import deepcopy
+from pathlib import Path
+from typing import Iterable, Optional, Union
 
 import yaml
 
@@ -40,8 +40,10 @@ def check_field_dtype(field_name: str, dtype: Union[type, Iterable[type]], obj: 
         if any(isinstance(obj[field_name], d) for d in dtype):
             pass
         else:
-            msg = (f"Field {field_name} has wrong data type {type(obj[field_name])},"
-                   + f" expected {dtype}")
+            msg = (
+                f"Field {field_name} has wrong data type {type(obj[field_name])},"
+                + f" expected {dtype}"
+            )
             raise TypeError(msg)
     else:
         msg = f"Field {field_name} is absent"
@@ -49,10 +51,11 @@ def check_field_dtype(field_name: str, dtype: Union[type, Iterable[type]], obj: 
 
 
 def check_field_min_max(
-        field_name: str,
-        _min: Optional[FloatInt] = None,
-        _max: Optional[FloatInt] = None,
-        obj: dict = None):
+    field_name: str,
+    _min: Optional[FloatInt] = None,
+    _max: Optional[FloatInt] = None,
+    obj: dict = None,
+):
     if field_name not in obj:
         msg = f"Field {field_name} is absent"
         raise KeyError(msg)
@@ -167,8 +170,10 @@ class PipelineConfigReader:
             if f not in config:
                 missing_f.append(f)
         if missing_f:
-            msg = ("Incorrectly formatted config file."
-                   "These fields are absent: " + str(missing_f))
+            msg = (
+                "Incorrectly formatted config file."
+                "These fields are absent: " + str(missing_f)
+            )
             raise ValueError(msg)
 
     def parse_input(self, input_dict: dict):
@@ -231,25 +236,31 @@ class PipelineConfigReader:
         check_field_dtype("OutputPrefix", str, output_dict)
         check_field_dtype("SaveOutputToCycleStack", bool, output_dict)
 
-        self.Output.OutputDir =  Path(output_dict["OutputDir"])
+        self.Output.OutputDir = Path(output_dict["OutputDir"])
         self.Output.OutputPrefix = output_dict["OutputPrefix"]
         self.Output.SaveOutputToCycleStack = output_dict["SaveOutputToCycleStack"]
 
     def parse_reg_param(self, reg_dict: dict):
         if "FeatureReg" not in reg_dict and "OptFlowReg" not in reg_dict:
-            msg = ("Parameters for hte registration methods are absent. "
-                   + "At least one of the registration methods: "
-                   + "FeatureReg or OptFlowReg must be present.")
+            msg = (
+                "Parameters for hte registration methods are absent. "
+                + "At least one of the registration methods: "
+                + "FeatureReg or OptFlowReg must be present."
+            )
             raise ValueError(msg)
         if "FeatureReg" in reg_dict:
             check_field_dtype("FeatureReg", dict, reg_dict)
-            self.RegistrationParameters.FeatureReg.read_from_dict(reg_dict["FeatureReg"])
+            self.RegistrationParameters.FeatureReg.read_from_dict(
+                reg_dict["FeatureReg"]
+            )
         else:
             self.RegistrationParameters.FeatureReg = None
 
         if "OptFlowReg" in reg_dict:
             check_field_dtype("OptFlowReg", dict, reg_dict)
-            self.RegistrationParameters.OptFlowReg.read_from_dict(reg_dict["OptFlowReg"])
+            self.RegistrationParameters.OptFlowReg.read_from_dict(
+                reg_dict["OptFlowReg"]
+            )
         else:
             self.RegistrationParameters.OptFlowReg = None
 
@@ -274,12 +285,16 @@ class PipelineConfigReader:
                 msg = "Mixed input is not yet supported"
                 raise NotImplemented(msg)
             elif num_dict_inst == 0 and num_str_inst == 0:
-                msg = ("Cannot recognize type of InputImagePaths." +
-                       "Please check your config file against the reference.")
+                msg = (
+                    "Cannot recognize type of InputImagePaths."
+                    + "Please check your config file against the reference."
+                )
                 raise ValueError(msg)
             elif num_dict_inst < 2 and num_str_inst < 2:
-                msg = ("Not enough cycles for registration. "
-                       + "Please provide at least two cycles")
+                msg = (
+                    "Not enough cycles for registration. "
+                    + "Please provide at least two cycles"
+                )
                 raise ValueError(msg)
             else:
                 if num_dict_inst > 0:

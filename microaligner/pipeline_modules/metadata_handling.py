@@ -22,10 +22,10 @@ from typing import Any, Dict, List, Union
 import tifffile as tif
 
 from ..shared_modules.dtype_aliases import XML, Shape2D
+from ..shared_modules.utils import path_to_str
 from .ome_meta_processing import (_strip_cycle_info, collect_info_from_ome,
                                   read_ome_meta_from_file)
 from .stack_builder import generate_ome_for_cycle_builder
-from ..shared_modules.utils import path_to_str
 
 
 @dataclass
@@ -39,7 +39,9 @@ class DatasetStruct:
 class DatasetStructCreator:
     def __init__(self):
         self._ref_ch = "DAPI"
-        self.img_paths: Union[None, Path, Dict[int, Path], Dict[int, Dict[str, Path]]] = None
+        self.img_paths: Union[
+            None, Path, Dict[int, Path], Dict[int, Dict[str, Path]]
+        ] = None
         self.input_is_stack = False
         self.input_is_stack_builder = False
         self.output_is_stack = True

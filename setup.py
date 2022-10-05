@@ -41,7 +41,7 @@ if not opencv_installed:
 
 setuptools.setup(
     name="microaligner",
-    version="1.0",
+    version="1.0.0",
     packages=["microaligner"],
     url="",
     classifiers=[

@@ -40,9 +40,9 @@ if not opencv_installed:
 # -------------------
 
 setuptools.setup(
-    name="lia",
+    name="microaligner",
     version="1.0",
-    packages=["lia"],
+    packages=["microaligner"],
     url="",
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -55,11 +55,11 @@ setuptools.setup(
     license="GPLv3",
     author="Vasyl Vaskivskyi",
     author_email="vaskivskyi.v@gmail.com",
-    description="LIA: Large Image Aligner for microscopy images",
+    description="MicroAligner: image registration for large scale microscopy",
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires=">=3.7",
     install_requires=package_list,
     include_package_data=True,
-    entry_points={"console_scripts": ["lia = lia.__main__:main"]},
+    entry_points={"console_scripts": ["microaligner = microaligner.__main__:main"]},
 )

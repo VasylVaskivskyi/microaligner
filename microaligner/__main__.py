@@ -1,5 +1,5 @@
 #  Copyright (C) 2022 Vasyl Vaskivskyi
-#  LIA: Large image aligner for microscopy images
+#  MicroAligner: image registration for large scale microscopy
 #  Email: vaskivskyi.v@gmail.com
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -401,7 +401,7 @@ def register_and_save_ofreg_imgs(
 
 
 def parse_cmd_args() -> Path:
-    parser = argparse.ArgumentParser(description="LIA: Large image aligner")
+    parser = argparse.ArgumentParser(description="MicroAligner: image registration for large scale microscopy")
     parser.add_argument("config", type=Path, help="path to the config yaml file")
     args = parser.parse_args()
     reg_config_path = args.config

@@ -1,8 +1,8 @@
-## LIA: Large image aligner for microscopy images
+## MicroAligner: image registration for large scale microscopy
 
 - Automatic, no need to manually select points of interest
 - Fast, most of internal tasks are parallelized
-- Memory efficient, works on gigapixel size images
+- Memory efficient, keeps only one image page in the memory at a time
 - Scalable, the more cores you have the faster it works
 - Linear and non-linear alignment, gives best results together in that order
 
@@ -31,10 +31,11 @@ and discard gradual changes caused by uneven illumination.
 
 If images have z-planes, the script perform maximum intensity projection along the z dimension
 before doing the registration, so the alignment happens only in X-Y coordinates.
+The output image has OME-TIFF metadata, and dimension order TCZYX.
 
 ### Installation
 
-`pip install lia`
+`pip install microaligner`
 
 ### Dependencies
 `numpy tifffile pandas opencv-contrib-python dask scikit-learn scikit-image` \
@@ -46,7 +47,7 @@ Also check up the `environment.yaml` file.
 
 ##### Feature based registration
 ```python
-from lia import FeatureRegistrator, transform_img_with_tmat
+from microaligner import FeatureRegistrator, transform_img_with_tmat
 freg = FeatureRegistrator()
 freg.ref_img = img1
 freg.mov_img = img2
@@ -57,7 +58,7 @@ img2_feature_reg_aligned = transform_img_with_tmat(img2, img2.shape, transformat
 
 ##### Optical flow based registration
 ```python
-from lia import OptFlowRegistrator, Warper 
+from microaligner import OptFlowRegistrator, Warper 
 ofreg = OptFlowRegistrator()
 ofreg.ref_img = img1
 ofreg.mov_img = img2
@@ -71,7 +72,7 @@ img2_optflow_reg_aligned = warper.warp()
 
 
 #### As a pipeline
-**`lia config.yaml`**
+**`microaligner config.yaml`**
 
 For details about the config parameters please refer to the example `config.yaml` provided in this repository.
 

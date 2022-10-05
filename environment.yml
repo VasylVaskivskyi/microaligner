@@ -1,4 +1,4 @@
-name: reg
+name: microaligner
 channels:
   - defaults
 dependencies:

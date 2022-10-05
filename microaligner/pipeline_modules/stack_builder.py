@@ -1,5 +1,5 @@
 #  Copyright (C) 2022 Vasyl Vaskivskyi
-#  LIA: Large image aligner for microscopy images
+#  MicroAligner: image registration for large scale microscopy
 #  Email: vaskivskyi.v@gmail.com
 #
 #  This program is free software: you can redistribute it and/or modify

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
 import tifffile as tif
+import pint
 
 from ..shared_modules.dtype_aliases import XML, Shape2D
 from ..shared_modules.utils import path_to_str
@@ -42,6 +43,25 @@ def read_ome_meta_from_file(path: Path) -> XML:
         ome_meta_str = TF.ome_metadata
     ome_xml = str_to_xml(ome_meta_str)
     return ome_xml
+
+
+def _convert_resolution_to_nm(value: float, unit: str) -> float:
+    pint_unit = pint.UnitRegistry()
+    provided_unit = pint_unit[unit]
+    provided_res = value
+    res_in_units = provided_res * provided_unit
+    res_in_um = res_in_units.to("nm")
+    return res_in_um.magnitude
+
+
+def _convert_sizes(size_info: dict) -> dict:
+    phys_size_x_conv = _convert_resolution_to_nm(size_info["PhysicalSizeX"], size_info["PhysicalSizeXUnit"])
+    phys_size_y_conv = _convert_resolution_to_nm(size_info["PhysicalSizeY"], size_info["PhysicalSizeYUnit"])
+    size_info["PhysicalSizeX"] = phys_size_x_conv
+    size_info["PhysicalSizeY"] = phys_size_y_conv
+    size_info["PhysicalSizeXUnit"] = "nm"
+    size_info["PhysicalSizeYUnit"] = "nm"
+    return size_info
 
 
 def _strip_cycle_info(name) -> str:
@@ -126,18 +146,21 @@ def _extract_channel_info(ome_xml: XML) -> Dict[str, Any]:
 def _extract_pixels_info(ome_xml: XML) -> Dict[str, Union[int, float]]:
     dims = ["SizeX", "SizeY", "SizeC", "SizeZ", "SizeT"]
     sizes = ["PhysicalSizeX", "PhysicalSizeY"]
+    units = ["PhysicalSizeXUnit", "PhysicalSizeYUnit"]
     pixels = ome_xml.find("Image").find("Pixels")
     pixels_info = dict()
     for d in dims:
         pixels_info[d] = int(pixels.get(d, 1))
     for s in sizes:
         pixels_info[s] = float(pixels.get(s, 1))
+    for u in units:
+        pixels_info[u] = pixels.get(u, "um")
     return pixels_info
 
 
 def extract_sizes_from_xml_list(
     ome_xml_list: List[XML], target_shape: Shape2D
-) -> Dict[str, Union[int, float]]:
+) -> Dict[str, Union[int, Any]]:
     time = []
     planes = []
     channels = []
@@ -150,6 +173,8 @@ def extract_sizes_from_xml_list(
         channels.append(pixels_info["SizeC"])
         phys_size_x_list.append(pixels_info["PhysicalSizeX"])
         phys_size_y_list.append(pixels_info["PhysicalSizeY"])
+        phys_unit_x = pixels_info["PhysicalSizeXUnit"]
+        phys_unit_y = pixels_info["PhysicalSizeYUnit"]
     n_time = max(time)
     n_zplanes = max(planes)
     n_channels = sum(channels)
@@ -163,6 +188,8 @@ def extract_sizes_from_xml_list(
         "SizeT": n_time,
         "PhysicalSizeX": phys_size_x,
         "PhysicalSizeY": phys_size_y,
+        "PhysicalSizeXUnit": phys_unit_x,
+        "PhysicalSizeYUnit": phys_unit_y,
     }
     return sizes
 
@@ -198,11 +225,12 @@ def create_channel_nodes_list(ncycles: int, channel_info_list: List[Dict[str, An
         new_channel_names = [cycle_prefix + ch for ch in channel_names]
 
         for ch in range(0, len(channels)):
+            channel = deepcopy(channels[ch])
             new_channel_id = "Channel:0:" + str(channel_id)
             new_channel_name = new_channel_names[ch]
-            channels[ch].set("Name", new_channel_name)
-            channels[ch].set("ID", new_channel_id)
-            channel_nodes.append(channels[ch])
+            channel.set("Name", new_channel_name)
+            channel.set("ID", new_channel_id)
+            channel_nodes.append(channel)
             channel_id += 1
     return channel_nodes
 
@@ -264,7 +292,10 @@ def create_meta_for_each_img(
     new_xmls = dict()
     for cyc, old_xml in old_xmls.items():
         sizes = extract_sizes_from_xml_list([old_xml], target_shape)
+        sizes = _convert_sizes(sizes)
         new_xml = deepcopy(old_xml)
+        new_dim_order = "XYZCT"
+        new_xml.find("Image").find("Pixels").set("DimensionOrder", new_dim_order)
         for attr, val in sizes.items():
             new_xml.find("Image").find("Pixels").set(attr, str(val))
 
@@ -302,7 +333,7 @@ def create_combined_meta(
         ome_xml_list.append(ome_xml)
 
     sizes = extract_sizes_from_xml_list(ome_xml_list, target_shape)
-
+    sizes = _convert_sizes(sizes)
     # use metadata from first image as reference metadata
     ref_xml = deepcopy(ome_xml_list[0])
 
@@ -313,6 +344,8 @@ def create_combined_meta(
         ref_xml.set(attr, val)
 
     # set new dimension sizes
+    new_dim_order = "XYZCT"
+    ref_xml.find("Image").find("Pixels").set("DimensionOrder", new_dim_order)
     for attr, val in sizes.items():
         ref_xml.find("Image").find("Pixels").set(attr, str(val))
 
@@ -346,6 +379,7 @@ def create_combined_meta(
 
 def separate_stack_meta(ome_meta_per_cyc: Dict[int, XML], target_shape: Shape2D
 ) -> Dict[int, str]:
+    new_dim_order = "XYZCT"
     old_xmls = dict()
     ome_xml_list = []
     for cyc, ome_xml in ome_meta_per_cyc.items():
@@ -361,8 +395,9 @@ def separate_stack_meta(ome_meta_per_cyc: Dict[int, XML], target_shape: Shape2D
     for cyc, old_xml in old_xmls.items():
         sizes = extract_sizes_from_xml_list([old_xml], target_shape)
         sizes["SizeC"] = num_ch_per_cyc
-
+        sizes = _convert_sizes(sizes)
         new_xml = deepcopy(old_xml)
+        new_xml.find("Image").find("Pixels").set("DimensionOrder", new_dim_order)
         for attr, val in sizes.items():
             new_xml.find("Image").find("Pixels").set(attr, str(val))
 

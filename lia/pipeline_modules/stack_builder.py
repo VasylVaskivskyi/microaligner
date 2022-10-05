@@ -69,7 +69,7 @@ def get_image_dims(path: Path) -> Dict[str, int]:
     with tif.TiffFile(path) as TF:
         image_shape = list(TF.series[0].shape)
         image_dims = list(TF.series[0].axes)
-    dims = ["Z", "Y", "X"]
+    dims = ["Q", "C", "Z", "Y", "X"]
     image_dimensions = dict()
     for d in dims:
         if d in image_dims:
@@ -77,6 +77,22 @@ def get_image_dims(path: Path) -> Dict[str, int]:
             image_dimensions[d] = image_shape[idx]
         else:
             image_dimensions[d] = 1
+    q_size = image_dimensions["Q"]
+    c_size = image_dimensions["C"]
+    z_size = image_dimensions["Z"]
+
+    if sum((q_size > 1, c_size > 1, z_size > 1)) >= 2:
+            msg = f"The input image has too many dimensions"
+            raise ValueError(msg)
+    else:
+        higher_dims = ["Q", "C", "Z"]
+        dim_val = 1
+        for dim in higher_dims:
+            if image_dimensions[dim] > 1:
+                dim_val = image_dimensions[dim]
+        for dim in higher_dims:
+            del image_dimensions[dim]
+        image_dimensions["Z"] = dim_val
     return image_dimensions
 
 
@@ -141,7 +157,7 @@ def generate_default_pixel_attributes(img_path: str) -> Dict[str, str]:
         img_dtype = TF.series[0].dtype
     pixels_attrib = {
         "ID": "Pixels:0",
-        "DimensionOrder": "XYCZT",
+        "DimensionOrder": "XYZCT",
         "Interleaved": "false",
         "Type": img_dtype.name,
     }
@@ -168,7 +184,7 @@ def generate_ome_meta_per_cycle(
         this_cycle_channels = generate_channel_meta(
             channel_names, cyc, channel_id_offset
         )
-        channel_elements.extend(this_cycle_channels)
+        #channel_elements.extend(this_cycle_channels)
         channel_id_offset += num_channels
         tiffdata_elements = generate_tiffdata_meta(img_dims_per_cycle[cyc])
 
@@ -180,7 +196,7 @@ def generate_ome_meta_per_cycle(
         node_image = ET.Element("Image", {"ID": "Image:0", "Name": "default.tif"})
         node_pixels = ET.Element("Pixels", pixels_attrib)
 
-        for ch in channel_elements:
+        for ch in this_cycle_channels:
             node_pixels.append(ch)
 
         for td in tiffdata_elements:

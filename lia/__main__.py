@@ -36,6 +36,7 @@ from .pipeline_modules.metadata_handling import (DatasetStruct,
 from .pipeline_modules.ome_meta_processing import create_new_meta
 from .pipeline_modules.config_reader import PipelineConfigReader, PipelineConfig
 from .shared_modules.utils import (pad_to_shape, path_to_str,
+                                   read_tiff_page,
                                    read_and_max_project_pages,
                                    set_number_of_dask_workers,
                                    transform_img_with_tmat)
@@ -69,38 +70,53 @@ def save_param(
 
 
 def transform_and_save_zplanes(
-        writer: tif.TiffWriter,
+        mm: tif.memmap,
+        ch_id: int,
         target_shape: Shape2D,
         transform_matrix: TMat,
         img_paths: Dict[int, Path],
         tiff_pages: Dict[int, int],
         max_zplanes: int,
-        ome_meta: str,
 ):
+    z_id = 0
     for z, img_path in img_paths.items():
-        img = tif.imread(path_to_str(img_path), key=tiff_pages[z])
+        img = read_tiff_page(img_path, tiff_pages[z])
+        #img = tif.imread(path_to_str(img_path), key=tiff_pages[z])
 
         img = transform_img_with_tmat(img, target_shape, transform_matrix)
-        writer.write(
-            img, contiguous=True, photometric="minisblack", description=ome_meta
-        )
+        mm[0, ch_id, z_id, :, :] = img
+        mm.flush()
         gc.collect()
+        z_id += 1
 
     num_zplanes = len(tiff_pages)
     if num_zplanes < max_zplanes:
         diff = max_zplanes - num_zplanes
         empty_page = np.zeros_like(img)
         for a in range(0, diff):
-            writer.write(
-                empty_page,
-                contiguous=True,
-                photometric="minisblack",
-                description=ome_meta,
-            )
+            mm[0, ch_id, num_zplanes + a, :, :] = empty_page
+            mm.flush()
         del empty_page
     gc.collect()
     del img
     return
+
+
+def create_memmap_for_saving(output_path: Path,
+                            img_shape: Tuple[int, int, int, int, int],
+                            img_dtype: np.dtype,
+                            ome_meta: str
+) -> tif.memmap:
+    mm = tif.memmap(output_path,
+                    shape=img_shape,
+                    mode="r+",
+                    dtype=img_dtype,
+                    photometric="minisblack",
+                    bigtiff=True,
+                    description=ome_meta,
+                    contiguous=True
+                    )
+    return mm
 
 
 def transform_and_save_freg_imgs(
@@ -119,50 +135,60 @@ def transform_and_save_freg_imgs(
     first_cycle = cycles[0]
     ncycles = len(cycles)
 
-    if input_is_stack:
-        first_cycle_paths = dataset_struct.img_paths[first_cycle]
-        zplane_paths = get_first_element_of_dict(first_cycle_paths)
-        img_path = get_first_element_of_dict(zplane_paths)
-        with tif.TiffFile(path_to_str(img_path)) as TF:
-            ome_meta = TF.ome_metadata
+    first_cycle_paths = dataset_struct.img_paths[first_cycle]
+    zplane_paths = get_first_element_of_dict(first_cycle_paths)
+    img_path = get_first_element_of_dict(zplane_paths)
+    with tif.TiffFile(path_to_str(img_path)) as TF:
+        img_dtype = TF.series[0].dtype
 
     nzplanes_per_cyc = []
     for cyc in dataset_struct.tiff_pages:
         for ch in dataset_struct.tiff_pages[cyc]:
             nzplanes_per_cyc.append(len(dataset_struct.tiff_pages[cyc][ch]))
 
+    nchannels_per_cyc = []
+    for cyc in dataset_struct.tiff_pages:
+        nchannels_per_cyc.append(len(dataset_struct.tiff_pages[cyc]))
+
     max_zplanes = max(nzplanes_per_cyc)
+    total_channels = sum(nchannels_per_cyc)
     if save_to_stack:
         output_path = out_dir / filenames["stack"]
-        TW = tif.TiffWriter(output_path, bigtiff=True)
         ome_meta = ome_meta_per_cyc[first_cycle]
+        #TW = tif.TiffWriter(output_path, bigtiff=True)
+        cycle_stack_shape = (1, total_channels, max_zplanes, target_shape[0], target_shape[1])
+        img_memmap = create_memmap_for_saving(output_path, cycle_stack_shape, img_dtype, ome_meta)
 
-    for i, cyc in enumerate(dataset_struct.tiff_pages):
-        print(f"Transforming and saving Cycle {cyc} [{i + 1}/{ncycles}]")
+    for cyc_id, cyc in enumerate(dataset_struct.tiff_pages):
+        print(f"Transforming and saving Cycle {cyc} [{cyc_id + 1}/{ncycles}]")
         if not save_to_stack:
             filename = filenames["per_cycle"].format(cyc=cyc)
             cyc_out_path = out_dir / filename
-            TW = tif.TiffWriter(cyc_out_path, bigtiff=True)
+            #TW = tif.TiffWriter(cyc_out_path, bigtiff=True)
             ome_meta = ome_meta_per_cyc[cyc]
+            nchannels = len(dataset_struct.tiff_pages[cyc])
+            stack_shape = (1, nchannels, max_zplanes, target_shape[0], target_shape[1])
+            img_memmap = create_memmap_for_saving(cyc_out_path, stack_shape, img_dtype, ome_meta)
 
         transform_matrix = tmat_per_cycle[cyc]
 
-        for ch in dataset_struct.tiff_pages[cyc]:
+        for ch_id, ch in enumerate(dataset_struct.tiff_pages[cyc]):
+            cross_cyc_ch_id = cyc_id * nchannels_per_cyc[0] + ch_id
             tiff_pages = dataset_struct.tiff_pages[cyc][ch]
             img_paths = dataset_struct.img_paths[cyc][ch]
             transform_and_save_zplanes(
-                TW,
+                img_memmap,
+                cross_cyc_ch_id,
                 target_shape,
                 transform_matrix,
                 img_paths,
                 tiff_pages,
-                max_zplanes,
-                ome_meta,
+                max_zplanes
             )
         if not save_to_stack:
-            TW.close()
+            del img_memmap
     if save_to_stack:
-        TW.close()
+        del img_memmap
     return
 
 
@@ -211,8 +237,8 @@ def do_feature_reg(
 
     cycles = list(dataset_struct.tiff_pages.keys())
     ncycles = len(cycles)
-    for i, cyc in enumerate(cycles):
-        print(f"Processing Cycle {cyc} [{i + 1}/{ncycles}]")
+    for cyc_id, cyc in enumerate(cycles):
+        print(f"Processing Cycle {cyc} [{cyc_id + 1}/{ncycles}]")
         if cyc == ref_cycle_id:
             print("Skipping as it is a reference cycle")
             tmat_per_cycle[cyc] = identity_matrix
@@ -237,38 +263,33 @@ def do_feature_reg(
 
 
 def warp_and_save_pages(
-        writer: tif.TiffWriter,
+        mm: tif.memmap,
+        ch_id: int,
         warper: Warper,
         flow: Flow,
         img_paths: Dict[int, Path],
         tiff_pages: Dict[int, int],
-        ome_meta: str,
 ):
-    for z in img_paths:
-        warper.image = tif.imread(path_to_str(img_paths[z]), key=tiff_pages[z])
+    for z_id, z in enumerate(img_paths):
+        warper.image = read_tiff_page(img_paths[z], tiff_pages[z])
         warper.flow = flow
         warped_img = warper.warp()
-        writer.write(
-            warped_img,
-            contiguous=True,
-            photometric="minisblack",
-            description=ome_meta,
-        )
+        mm[0, ch_id, z_id, :, :] = warped_img
+        mm.flush()
+    return
 
 
 def save_pages(
-        writer: tif.TiffWriter,
+        mm: tif.memmap,
+        ch_id: int,
         img_paths: Dict[int, Path],
         tiff_pages: Dict[int, int],
-        ome_meta: str,
 ):
-    for z in img_paths:
-        writer.write(
-            tif.imread(path_to_str(img_paths[z]), key=tiff_pages[z]),
-            contiguous=True,
-            photometric="minisblack",
-            description=ome_meta,
-        )
+    for z_id, z in enumerate(img_paths):
+        #img = read_tiff_page(img_paths[z], tiff_pages[z])
+        mm[0, ch_id, z_id, :, :] = read_tiff_page(img_paths[z], tiff_pages[z])  # tif.imread(path_to_str(img_paths[z]), key=tiff_pages[z])
+        mm.flush()
+    return
 
 
 def register_and_save_ofreg_imgs(
@@ -304,25 +325,42 @@ def register_and_save_ofreg_imgs(
     first_cycle = cycles[0]
     ncycles = len(cycles)
 
-    if input_is_stack:
-        first_cycle_paths = dataset_struct.img_paths[first_cycle]
-        zplane_paths = get_first_element_of_dict(first_cycle_paths)
-        img_path = get_first_element_of_dict(zplane_paths)
-        with tif.TiffFile(path_to_str(img_path)) as TF:
-            ome_meta = TF.ome_metadata
+    first_cycle_paths = dataset_struct.img_paths[first_cycle]
+    zplane_paths = get_first_element_of_dict(first_cycle_paths)
+    img_path = get_first_element_of_dict(zplane_paths)
+    with tif.TiffFile(path_to_str(img_path)) as TF:
+        img_shape = TF.series[0].shape
+        img_dtype = TF.series[0].dtype
+
+    nzplanes_per_cyc = []
+    for cyc in dataset_struct.tiff_pages:
+        for ch in dataset_struct.tiff_pages[cyc]:
+            nzplanes_per_cyc.append(len(dataset_struct.tiff_pages[cyc][ch]))
+
+    nchannels_per_cyc = []
+    for cyc in dataset_struct.tiff_pages:
+        nchannels_per_cyc.append(len(dataset_struct.tiff_pages[cyc]))
+
+    max_zplanes = max(nzplanes_per_cyc)
+    total_channels = sum(nchannels_per_cyc)
 
     if save_to_stack:
         ome_meta = ome_meta_per_cyc[first_cycle]
         out_path = out_dir / filenames["stack"]
-        TW = tif.TiffWriter(out_path, bigtiff=True)
+        cycle_stack_shape = (1, total_channels, max_zplanes, img_shape[-2], img_shape[-1])
+        img_memmap = create_memmap_for_saving(out_path, cycle_stack_shape, img_dtype, ome_meta)
+        #TW = tif.TiffWriter(out_path, bigtiff=True)
 
-    for i, cyc in enumerate(cycles):
-        print(f"Processing Cycle {cyc} [{i + 1}/{ncycles}]")
+    for cyc_id, cyc in enumerate(cycles):
+        print(f"Processing Cycle {cyc} [{cyc_id + 1}/{ncycles}]")
         if not save_to_stack:
             ome_meta = ome_meta_per_cyc[cyc]
             filename = filenames["per_cycle"].format(cyc=cyc)
             cyc_out_path = out_dir / filename
-            TW = tif.TiffWriter(cyc_out_path, bigtiff=True)
+            #TW = tif.TiffWriter(cyc_out_path, bigtiff=True)
+            nchannels = len(dataset_struct.tiff_pages[cyc])
+            stack_shape = (1, nchannels, max_zplanes, img_shape[-2], img_shape[-1])
+            img_memmap = create_memmap_for_saving(cyc_out_path, stack_shape, img_dtype, ome_meta)
 
         ref_ch_id = dataset_struct.ref_channel_ids[cyc]
         img_paths: Dict[int, Path] = dataset_struct.img_paths[cyc][ref_ch_id]
@@ -332,11 +370,12 @@ def register_and_save_ofreg_imgs(
             print("Skipping as it is a reference image")
             ref_img = read_and_max_project_pages(img_paths, tiff_pages)
 
-            print(f"Saving Cycle {cyc} [{i + 1}/{ncycles}]")
-            for ch in dataset_struct.tiff_pages[cyc]:
+            print(f"Saving Cycle {cyc} [{cyc_id + 1}/{ncycles}]")
+            for ch_id, ch in enumerate(dataset_struct.tiff_pages[cyc]):
                 tiff_pages = dataset_struct.tiff_pages[cyc][ch]
                 img_paths = dataset_struct.img_paths[cyc][ch]
-                save_pages(TW, img_paths, tiff_pages, ome_meta)
+                cross_cyc_ch_id = cyc_id * nchannels_per_cyc[0] + ch_id
+                save_pages(img_memmap, cross_cyc_ch_id, img_paths, tiff_pages)
         else:
             # mov_pages = list(this_cycle["img_structure"][ref_ch_id].values())
             mov_img = read_and_max_project_pages(img_paths, tiff_pages)
@@ -349,15 +388,16 @@ def register_and_save_ofreg_imgs(
             warper.flow = flow
             ref_img = warper.warp()  # will be used in the next cycle
 
-            print(f"Saving Cycle {cyc} [{i + 1}/{ncycles}]")
-            for ch in dataset_struct.tiff_pages[cyc]:
+            print(f"Saving Cycle {cyc} [{cyc_id + 1}/{ncycles}]")
+            for ch_id, ch in enumerate(dataset_struct.tiff_pages[cyc]):
                 tiff_pages = dataset_struct.tiff_pages[cyc][ch]
                 img_paths = dataset_struct.img_paths[cyc][ch]
-                warp_and_save_pages(TW, warper, flow, img_paths, tiff_pages, ome_meta)
+                cross_cyc_ch_id = cyc_id * nchannels_per_cyc[0] + ch_id
+                warp_and_save_pages(img_memmap, cross_cyc_ch_id, warper, flow, img_paths, tiff_pages)
         if not save_to_stack:
-            TW.close()
+            del img_memmap
     if save_to_stack:
-        TW.close()
+        del img_memmap
 
 
 def parse_cmd_args() -> Path:

@@ -66,6 +66,12 @@ def pad_to_shape(
         return padded_img, padding
 
 
+def read_tiff_page(img_path: Path, page_id: int, series_id=0) -> Image:
+    with tif.TiffFile(path_to_str(img_path)) as TF:
+        page = TF.series[series_id].pages[page_id].asarray()
+    return page
+
+
 def read_and_max_project_pages(
     img_paths: Dict[int, Path], tiff_pages: Dict[int, int]
 ) -> Image:
@@ -75,7 +81,8 @@ def read_and_max_project_pages(
     first_z = list(img_paths2.keys())[0]
     img_path = img_paths2[first_z]
     tiff_page = tiff_pages2[first_z]
-    max_proj = tif.imread(path_to_str(img_path), key=tiff_page)
+    max_proj = read_tiff_page(img_path, tiff_page)
+    #max_proj = tif.imread(path_to_str(img_path), key=tiff_page)
 
     if len(img_paths2) > 1:
         del img_paths2[first_z], tiff_pages2[first_z]
@@ -83,8 +90,9 @@ def read_and_max_project_pages(
             img_path = img_paths2[z]
             tiff_page = tiff_pages2[z]
             max_proj = np.maximum(
-                max_proj, tif.imread(path_to_str(img_path), key=tiff_page)
+                max_proj, read_tiff_page(img_path, tiff_page)
             )
+
     max_proj = cv.normalize(max_proj, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U)
     return max_proj
 

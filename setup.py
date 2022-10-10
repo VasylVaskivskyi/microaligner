@@ -32,7 +32,7 @@ package_list = [
     "dask>=2020.0",
     "scikit-learn>=1.0",
     "scikit-image>=0.19",
-    "jsonschema>=4.0",
+    "pint>=0.19.2",
 ]
 if not opencv_installed:
     package_list.append("opencv-contrib-python>=4.5,<5.0")
@@ -42,8 +42,9 @@ if not opencv_installed:
 setuptools.setup(
     name="microaligner",
     version="1.0.0",
-    packages=["microaligner"],
+    packages=setuptools.find_packages(),
     url="",
+    platforms=["any"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Development Status :: 5 - Production/Stable",
@@ -55,11 +56,14 @@ setuptools.setup(
     license="GPLv3",
     author="Vasyl Vaskivskyi",
     author_email="vaskivskyi.v@gmail.com",
+    project_urls={
+        "Source Code": "https://github.com/VasylVaskivskyi/microaligner",
+    },
     description="MicroAligner: image registration for large scale microscopy",
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires=">=3.7",
     install_requires=package_list,
-    include_package_data=True,
+    data_files=[("metadata", ["CITATION.cff", "config.yaml", "environment.yaml"])],
     entry_points={"console_scripts": ["microaligner = microaligner.__main__:main"]},
 )

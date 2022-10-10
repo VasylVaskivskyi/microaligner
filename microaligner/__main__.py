@@ -17,16 +17,13 @@
 
 import argparse
 import gc
-from copy import deepcopy
 from pathlib import Path
 from pprint import pprint
 from typing import Dict, List, Tuple
 
-import jsonschema
 import numpy as np
 import pandas as pd
 import tifffile as tif
-import yaml
 
 from .feature_reg import FeatureRegistrator
 from .optflow_reg import OptFlowRegistrator, Warper

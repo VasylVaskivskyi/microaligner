@@ -43,6 +43,11 @@ Also check up the `environment.yaml` file.
 
 ### Example usage
 
+#### As a pipeline
+**`microaligner config.yaml`**
+
+For details about the config parameters please refer to the example `config.yaml` provided in this repository.
+
 #### As a module
 
 ##### Feature based registration
@@ -69,12 +74,6 @@ warper.image = img2
 warper.flow = flow_map
 img2_optflow_reg_aligned = warper.warp()
 ```
-
-
-#### As a pipeline
-**`microaligner config.yaml`**
-
-For details about the config parameters please refer to the example `config.yaml` provided in this repository.
 
 ### Acknowledgments
 

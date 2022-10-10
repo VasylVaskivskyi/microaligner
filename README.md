@@ -33,12 +33,14 @@ If images have z-planes, the script perform maximum intensity projection along t
 before doing the registration, so the alignment happens only in X-Y coordinates.
 The output image has OME-TIFF metadata, and dimension order TCZYX.
 
+The pipeline accepts a YAML config file. Please check an example inside this repo.
+
 ### Installation
 
 `pip install microaligner`
 
 ### Dependencies
-`numpy tifffile pandas opencv-contrib-python dask scikit-learn scikit-image` \
+`numpy tifffile pandas opencv-contrib-python dask scikit-learn scikit-image pint` \
 Also check up the `environment.yaml` file.
 
 ### Example usage

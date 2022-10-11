@@ -1,0 +1,45 @@
+# Input
+# If your input is not structured as a multichannel stack, you can specify
+# individual channels per cycle like described bellow.
+# If file contains more than one page, they will be treated as z-planes.
+
+Input:
+  InputImagePaths:
+    Cycle 3:
+        DAPI: "img_path1"
+        Cy5: "img_path2"
+    Cycle 5:
+        DAPI: "img_path3"
+        Cy5: "img_path4"
+  ReferenceCycle: 3
+  ReferenceChannel: "DAPI"
+
+# Output
+# Images will be saved to a directory
+#   "/path/to/out/registered_imgs"
+# And because SaveOutputToCycleStack is true in this example,
+# and OutputPrefix is empty,
+# the file names will have the following patterns:
+#   feature_reg_result_stack.tif
+#   optflow_reg_result_stack.tif
+
+Output:
+  OutputDir: "/path/to/out/registered_imgs"
+  OutputPrefix: ""
+  SaveOutputToCycleStack: true
+
+# Registration parameters
+# Will do only linear feature based registration,
+# will not do non-linear optical flow based registration.
+# For information on all the registration parameters check the file
+# config_with_all_info.yaml
+
+RegistrationParameters:
+  FeatureReg:
+    NumberPyramidLevels: 3
+    NumberIterationsPerLevel: 3
+    TileSize: 1000
+    Overlap: 100
+    NumberOfWorkers: 0
+    UseFullResImage: false
+    UseDOG: true

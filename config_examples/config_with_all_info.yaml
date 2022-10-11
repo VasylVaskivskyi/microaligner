@@ -11,7 +11,7 @@
 # InputImagePaths:
 #    CycleStack: "stack_path"
 
-# If your input is not structured as a multichannel stack, you can use specify
+# If your input is not structured as a multichannel stack, you can specify
 # individual channels per cycle like described bellow.
 # If file contains more than one page, they will be treated as z-planes.
 # InputImagePaths:
@@ -24,8 +24,8 @@
 
 # ReferenceCycle indicates which cycle to use as reference for alignment of
 # all other cycles.
-# If all your cycles are in a stack, ReferenceCycle would mean
-# which round of imaging in stack to use.
+# If all your cycles are contained in one image,
+# MicroAligner will try to identify cycles based on reference channel names.
 # Cycle ids start from 1.
 # Cycle images must have the same number of channels, arranged in the same order,
 # Such that ReferenceChannel e.g. DAPI, is in the same position in the cycle, for example:

@@ -1,0 +1,39 @@
+# Input
+# If your input image is a stack that contains channels from all cycles
+
+Input:
+  InputImagePaths:
+    CycleStack: "stack_path"
+  ReferenceCycle: 1
+  ReferenceChannel: "DAPI"
+
+# Output
+# Images will be saved to a directory
+#   "/path/to/out/registered_imgs"
+# And because SaveOutputToCycleStack is false in this example,
+# the file names will have the following patterns:
+#   experiment_002_feature_reg_result_cyc001.tif
+#   experiment_002_feature_reg_result_cyc00N.tif
+#   experiment_002_optflow_reg_result_cyc001.tif
+#   experiment_002_optflow_reg_result_cyc00N.tif
+
+Output:
+  OutputDir: "/path/to/out/registered_imgs"
+  OutputPrefix: "experiment_002_"
+  SaveOutputToCycleStack: false
+
+# Registration parameters
+# Will do only non-linear optical flow based registration,
+# will skip the feature based registration.
+# For information on all the registration parameters check the file
+# config_with_all_info.yaml
+
+RegistrationParameters:
+  OptFlowReg:
+    NumberPyramidLevels: 3
+    NumberIterationsPerLevel: 3
+    TileSize: 1000
+    Overlap: 100
+    NumberOfWorkers: 0
+    UseFullResImage: true
+    UseDOG: false

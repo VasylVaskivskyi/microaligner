@@ -1,0 +1,49 @@
+# Input
+# Input is a list of images, each one is a stack of channels.
+# The order of channels is the same in each image,
+# or at least the location of the ReferenceChannel is the same in each cycle.
+
+Input:
+  InputImagePaths:
+    Cycle 1: "img_path"
+    Cycle 2: "img_path2"
+    Cycle 3: "img_path2"
+  ReferenceCycle: 1
+  ReferenceChannel: "DAPI"
+
+# Output
+# Images will be saved to a directory
+#   "/path/to/out/registered_imgs"
+# And because SaveOutputToCycleStack is true in this example,
+# the file names will have the following patterns:
+#   experiment_001_feature_reg_result_stack.tif
+#   experiment_001_optflow_reg_result_stack.tif
+
+Output:
+  OutputDir: "/path/to/out/registered_imgs"
+  OutputPrefix: "experiment_001_"
+  SaveOutputToCycleStack: true
+
+# Registration parameters
+# Do feature based and optical flow based registration in a succession.
+# For information on all the registration parameters check the file
+# config_with_all_info.yaml
+
+RegistrationParameters:
+  FeatureReg:
+    NumberPyramidLevels: 3
+    NumberIterationsPerLevel: 3
+    TileSize: 1000
+    Overlap: 100
+    NumberOfWorkers: 0
+    UseFullResImage: false
+    UseDOG: true
+
+  OptFlowReg:
+    NumberPyramidLevels: 3
+    NumberIterationsPerLevel: 3
+    TileSize: 1000
+    Overlap: 100
+    NumberOfWorkers: 0
+    UseFullResImage: true
+    UseDOG: false

@@ -33,7 +33,7 @@ If images have z-planes, the script perform maximum intensity projection along t
 before doing the registration, so the alignment happens only in X-Y coordinates.
 The output image has OME-TIFF metadata, and dimension order TCZYX.
 
-The pipeline accepts a YAML config file. Please check an example inside this repo.
+The pipeline accepts a YAML config file. Please check config_examples folder inside this repo.
 
 ### Installation
 

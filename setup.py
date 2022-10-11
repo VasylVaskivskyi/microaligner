@@ -1,4 +1,6 @@
 import setuptools
+from glob import glob
+
 
 with open("README.md", "r", encoding="utf-8") as s:
     long_description = s.read()
@@ -64,6 +66,6 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     python_requires=">=3.7",
     install_requires=package_list,
-    data_files=[("metadata", ["CITATION.cff", "config.yaml", "environment.yaml"])],
+    data_files=[("metadata", ["CITATION.cff", "environment.yaml"] + glob("config_examples/*.yaml"))],
     entry_points={"console_scripts": ["microaligner = microaligner.__main__:main"]},
 )

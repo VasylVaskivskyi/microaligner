@@ -317,6 +317,12 @@ def save_pages(
     return
 
 
+def save_flow(flow_path: Path, flow: Flow):
+    with open(flow_path, "wb") as s:
+        np.save(s, flow, allow_pickle=True, fix_imports=True)
+    return
+
+
 def register_and_save_ofreg_imgs(
     dataset_struct: DatasetStruct,
     out_dir: Path,
@@ -431,6 +437,8 @@ def register_and_save_ofreg_imgs(
                 warp_and_save_pages(
                     img_memmap, cross_cyc_ch_id, warper, flow, img_paths, tiff_pages
                 )
+                flow_out_path = out_dir / f"cyc{cyc:03d}_flow.npy"
+                save_flow(flow_out_path, flow)
         if not save_to_stack:
             del img_memmap
     if save_to_stack:

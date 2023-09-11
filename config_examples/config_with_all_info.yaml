@@ -42,6 +42,11 @@ Input:
   ReferenceCycle: 1
   ReferenceChannel: "DAPI"
 
+  InputPoints:
+    Cycle 1: "points path"
+    Cycle 2: "points path"
+
+
 # Output
 # Images will be saved to directory with the following patterns
 # If SaveOutputToCycleStack: true

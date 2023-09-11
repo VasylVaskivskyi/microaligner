@@ -171,21 +171,21 @@ class FeatureRegistrator:
             mov_img_aligned, est_t_mat_pyr = self._align_imgs(ref_features, aligned_img)
 
             is_more_similar = check_if_higher_similarity(
-                self.dog(ref_img, True),
-                self.dog(mov_img_aligned, True),
-                self.dog(aligned_img, True),
+                self.dog(ref_img,         self.use_dog),
+                self.dog(mov_img_aligned, self.use_dog),
+                self.dog(aligned_img,     self.use_dog),
                 self.tile_size,
             )
             is_valid_transform = self._check_if_valid_transform(
                 est_t_mat_pyr, mov_img.shape
             )
 
-            if any(is_more_similar) and is_valid_transform:
-                print("    Better alignment than before")
+            if is_more_similar and is_valid_transform:
+                print("    [+] Better alignment than before")
                 t_matrices.append(est_t_mat_pyr)
                 aligned_img = self._realign_img(mov_img, t_matrices)
             else:
-                print("    Worse alignment than before")
+                print("    [-] Worse alignment than before")
                 t_matrices.append(np.eye(2, 3))
                 aligned_img = aligned_img
         final_t_mat = self._multiply_transform_matrices(t_matrices)

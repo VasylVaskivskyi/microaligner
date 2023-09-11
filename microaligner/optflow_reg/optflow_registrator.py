@@ -114,9 +114,12 @@ class OptFlowRegistrator:
                 self._warper.image = mov_this_lvl
                 self._warper.flow = m_flow
                 mov_this_lvl = self._warper.warp()
+                self._tile_flow_calc.prev_flow = m_flow  #  use previous flow
+
                 # mov_this_lvl = self.warp_with_flow(mov_this_lvl, m_flow)
             self._tile_flow_calc.ref_img = self.dog(ref_pyr[lvl], self.use_dog)
             self._tile_flow_calc.mov_img = self.dog(mov_this_lvl, self.use_dog)
+
             this_flow = self._tile_flow_calc.calc_flow()
 
             self._warper.image = mov_this_lvl
@@ -125,14 +128,14 @@ class OptFlowRegistrator:
             gc.collect()
             # this_flow = self.calc_flow(ref_pyr[lvl], mov_this_lvl, 1, 0, 51)
             is_higher_similarity = check_if_higher_similarity(
-                self.dog(ref_pyr[lvl], True),
-                self.dog(mov_this_lvl, True),
-                self.dog(mov_pyr[lvl], True),
+                self.dog(ref_pyr[lvl], self.use_dog),
+                self.dog(mov_this_lvl, self.use_dog),
+                self.dog(mov_pyr[lvl], self.use_dog),
                 self.tile_size,
             )
 
-            if any(is_higher_similarity):
-                print("    Better alignment than before")
+            if is_higher_similarity:
+                print("    [+] Better alignment than before")
                 # merge flows, upscale to next level
                 if lvl == 0:
                     if num_lvl > 1:
@@ -150,7 +153,7 @@ class OptFlowRegistrator:
                     m_flow = cv.pyrUp(m_flow * 2, dstsize=dstsize)
                 del this_flow
             else:
-                print("    Worse alignment than before")
+                print("    [-] Worse alignment than before")
                 if lvl == 0:
                     if num_lvl > 1:
                         dstsize = list(mov_pyr[lvl + 1].shape)

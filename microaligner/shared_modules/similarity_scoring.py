@@ -20,6 +20,8 @@ from typing import List, Tuple
 import dask
 import numpy as np
 from sklearn.metrics import normalized_mutual_info_score
+from scipy.stats import rankdata
+import cv2 as cv
 
 from .dtype_aliases import Image
 
@@ -49,6 +51,37 @@ def mi_tiled(arr1: Image, arr2: Image, tile_size: int) -> float:
         mi_score = np.mean(scores)
     return mi_score
 
+def pearson_cor_coef(arr1, arr2) -> float:
+    X = arr1.flatten()
+    Y = arr2.flatten()
+    X_bar = np.average(X)
+    Y_bar = np.average(Y)
+    pearson = np.sum((X-X_bar)*(Y-Y_bar)) / (np.sqrt(np.sum((X-X_bar)**2))*(np.sqrt(np.sum((Y-Y_bar)**2))) + 1e-6)
+    return pearson
+
+
+def pcc_test(ref_arr: Image, test_arr: Image, init_arr: Image) -> Tuple[float, float]:
+    after_pcc_score = pearson_cor_coef(ref_arr, test_arr)
+    before_pcc_score = pearson_cor_coef(ref_arr, init_arr)
+    return after_pcc_score, before_pcc_score
+
+def spearman_cor_coef(arr1, arr2) -> float:
+    X = arr1.flatten()
+    Y = arr2.flatten()
+    Xr = rankdata(X).astype(np.uint32)
+    Yr = rankdata(Y).astype(np.uint32)
+    Xr_bar = np.average(Xr)
+    Yr_bar = np.average(Yr)
+    spearman = np.sum((Xr - Xr_bar) * (Yr - Yr_bar)) / (
+        np.sqrt(np.sum((Xr - Xr_bar) ** 2)) * (np.sqrt(np.sum((Yr - Yr_bar) ** 2))) + 1e-6
+    )
+    return spearman
+
+def scc_test(ref_arr: Image, test_arr: Image, init_arr: Image) -> Tuple[float, float]:
+    after_scc_score = spearman_cor_coef(ref_arr, test_arr)
+    before_scc_score = spearman_cor_coef(ref_arr, init_arr)
+    return after_scc_score, before_scc_score
+
 
 def mutual_information_test(
     ref_arr: Image, test_arr: Image, init_arr: Image, tile_size: int
@@ -57,12 +90,30 @@ def mutual_information_test(
     before_mi_score = mi_tiled(ref_arr, init_arr, tile_size)
     return after_mi_score, before_mi_score
 
+def ecc_test(ref_arr: Image, test_arr: Image, init_arr: Image) -> Tuple[float, float]:
+    after_ecc_score = cv.computeECC(ref_arr, test_arr)
+    before_ecc_score = cv.computeECC(ref_arr, init_arr)
+    return after_ecc_score, before_ecc_score
 
 def check_if_higher_similarity(
     ref_arr: Image, test_arr: Image, init_arr: Image, tile_size: int
-) -> List[bool]:
+) -> bool:
     mi_scores = mutual_information_test(ref_arr, test_arr, init_arr, tile_size)
-    checks = list()
-    checks.append(mi_scores[0] > mi_scores[1])
-    print("    MI score after:", mi_scores[0], "| MI score before:", mi_scores[1])
-    return checks
+    # scc_scores = scc_test(ref_arr, test_arr, init_arr)
+    # ecc_scores = ecc_test(ref_arr, test_arr, init_arr)
+
+    mi_check = mi_scores[0] > mi_scores[1]
+    # scc_check = scc_scores[0] > scc_scores[1]
+    # ecc_check = ecc_scores[0] > ecc_scores[1]
+
+    check_result = mi_check # sum([scc_check, mi_check, ecc_check]) > 1
+
+    mi_mark = "[+]" if mi_check else "[-]"
+    # scc_mark = "[+]" if scc_check else "[-]"
+    # ecc_mark = "[+]" if ecc_check else "[-]"
+
+    print("    ", mi_mark, "MI score after:", mi_scores[0], "| MI score before:", mi_scores[1])
+    # print("    ", scc_mark, "SCC score after:", scc_scores[0], "| SCC score before:", scc_scores[1])
+    # print("    ", ecc_mark, "ECC score after:", ecc_scores[0], "| ECC score before:", ecc_scores[1])
+    return check_result
+

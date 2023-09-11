@@ -80,6 +80,60 @@ def save_param(
     transform_table.to_csv(out_dir / "feature_reg_parameters.csv", index=False)
 
 
+def read_and_transform_points(input_point_path, out_dir, tmat_per_cycle, padding_per_cycle) -> Dict[int, pd.DataFrame]:
+    transf_points_dict = dict()
+    for cyc, ppath in input_point_path.items():
+        tmat = tmat_per_cycle[cyc]
+        name = f"proc_feature_reg_points_cyc{cyc:03d}.csv"
+        transf_points = transform_points(ppath, out_dir / name, tmat, padding_per_cycle[cyc])
+        transf_points_dict[cyc] = transf_points
+    return transf_points_dict
+
+
+def transform_points(points_csv_path: Path, out_path: Path, tmat: np.ndarray, padding: Dict):
+    points_from_file = pd.read_csv(points_csv_path, header=0, index_col=0)
+    points_arr = points_from_file.to_numpy()
+
+    # add col with ones to make homography
+    ones = np.ones((points_arr.shape[0], 1))
+    points_h = np.transpose(np.concatenate((points_arr, ones), axis=1))
+
+    tmat_h = np.append(tmat, [[0, 0, 1]], axis=0)
+    tmat_h[0, 2] += padding[0]
+    tmat_h[1, 2] += padding[2]
+
+    points_transformed = tmat_h @ points_h
+    points_res = np.transpose(points_transformed)[:, (0,1)]  # drop col with ones
+
+    points_res_df = pd.DataFrame(points_res, columns=["X", "Y"])
+    points_res_df.index += 1
+    points_res_df.to_csv(out_path, index=True)
+    return points_res_df
+
+
+def read_and_warp_points(out_dir, points_dict: Dict[int, pd.DataFrame], flow: np.ndarray, cyc: int):
+    points_df = points_dict[cyc]
+    print(points_df)
+    points_arr = points_df.to_numpy()
+    warped_points = move_points_flow(points_arr, flow)
+    warped_points_df = points_df.copy()
+    warped_points_df.loc[:, ("X", "Y")] = warped_points
+    name = f"proc_optflow_reg_points_cyc{cyc:03d}.csv"
+    warped_points_df.to_csv(out_dir / name, index=True)
+
+def move_points_flow(point_loc_arr: np.ndarray, flow: np.ndarray) -> np.ndarray:
+    def round2int(n):
+        return np.round(n, 0).astype(np.int32)
+    print(flow.shape)
+    new_loc = np.zeros_like(point_loc_arr)
+    for p in range(0, point_loc_arr.shape[0]):
+        px, py = point_loc_arr[p, :]
+        # x and y reversed here VVV
+        dpy, dpx = -flow[round2int(py), round2int(px), :]
+        new_loc[p, :] = round2int(px + dpx), round2int(dpy + py)
+    return new_loc
+
+
 def transform_and_save_zplanes(
     mm: tif.memmap,
     ch_id: int,
@@ -95,20 +149,11 @@ def transform_and_save_zplanes(
         # img = tif.imread(path_to_str(img_path), key=tiff_pages[z])
 
         img = transform_img_with_tmat(img, target_shape, transform_matrix)
-        mm[0, ch_id, z_id, :, :] = img
+        mm[ :, :] = img
         mm.flush()
         gc.collect()
         z_id += 1
 
-    num_zplanes = len(tiff_pages)
-    if num_zplanes < max_zplanes:
-        diff = max_zplanes - num_zplanes
-        empty_page = np.zeros_like(img)
-        for a in range(0, diff):
-            mm[0, ch_id, num_zplanes + a, :, :] = empty_page
-            mm.flush()
-        del empty_page
-    gc.collect()
     del img
     return
 
@@ -121,11 +166,11 @@ def create_memmap_for_saving(
 ) -> tif.memmap:
     mm = tif.memmap(
         output_path,
-        shape=img_shape,
+        shape=img_shape[-2:],
         mode="r+",
         dtype=img_dtype,
         photometric="minisblack",
-        bigtiff=True,
+        bigtiff=False,
         description=ome_meta,
         contiguous=True,
     )
@@ -195,13 +240,17 @@ def transform_and_save_freg_imgs(
 
         transform_matrix = tmat_per_cycle[cyc]
 
-        for ch_id, ch in enumerate(dataset_struct.tiff_pages[cyc]):
-            cross_cyc_ch_id = cyc_id * nchannels_per_cyc[0] + ch_id
+        for ch_id, ch in enumerate(dataset_struct.tiff_pages[cyc], start=0):
+            if save_to_stack:
+                this_ch_id = cyc_id * nchannels_per_cyc[0] + ch_id
+            else:
+                this_ch_id = ch_id
             tiff_pages = dataset_struct.tiff_pages[cyc][ch]
             img_paths = dataset_struct.img_paths[cyc][ch]
+
             transform_and_save_zplanes(
                 img_memmap,
-                cross_cyc_ch_id,
+                this_ch_id,
                 target_shape,
                 transform_matrix,
                 img_paths,
@@ -297,7 +346,7 @@ def warp_and_save_pages(
         warper.image = read_tiff_page(img_paths[z], tiff_pages[z])
         warper.flow = flow
         warped_img = warper.warp()
-        mm[0, ch_id, z_id, :, :] = warped_img
+        mm[:, :] = warped_img
         mm.flush()
     return
 
@@ -310,7 +359,7 @@ def save_pages(
 ):
     for z_id, z in enumerate(img_paths):
         # img = read_tiff_page(img_paths[z], tiff_pages[z])
-        mm[0, ch_id, z_id, :, :] = read_tiff_page(
+        mm[:, :] = read_tiff_page(
             img_paths[z], tiff_pages[z]
         )  # tif.imread(path_to_str(img_paths[z]), key=tiff_pages[z])
         mm.flush()
@@ -336,6 +385,7 @@ def register_and_save_ofreg_imgs(
     save_to_stack: bool,
     use_full_res_img: bool,
     use_dog: bool,
+    points: Dict[int, pd.DataFrame]
 ):
     """Read images and register them sequentially: 1<-2, 2<-3, 3<-4 etc.
     It is assumed that there is equal number of channels in each cycle.
@@ -430,29 +480,23 @@ def register_and_save_ofreg_imgs(
             ref_img = warper.warp()  # will be used in the next cycle
 
             print(f"Saving Cycle {cyc} [{cyc_id + 1}/{ncycles}]")
-            for ch_id, ch in enumerate(dataset_struct.tiff_pages[cyc]):
+            for ch_id, ch in enumerate(dataset_struct.tiff_pages[cyc], start=0):
                 tiff_pages = dataset_struct.tiff_pages[cyc][ch]
                 img_paths = dataset_struct.img_paths[cyc][ch]
-                cross_cyc_ch_id = cyc_id * nchannels_per_cyc[0] + ch_id
+                if save_to_stack:
+                    this_ch_id = cyc_id * nchannels_per_cyc[0] + ch_id
+                else:
+                    this_ch_id = ch_id
                 warp_and_save_pages(
-                    img_memmap, cross_cyc_ch_id, warper, flow, img_paths, tiff_pages
+                    img_memmap, this_ch_id, warper, flow, img_paths, tiff_pages
                 )
-                flow_out_path = out_dir / f"cyc{cyc:03d}_flow.npy"
-                save_flow(flow_out_path, flow)
+            #flow_out_path = out_dir / f"cyc{cyc:03d}_flow.npy"
+            #save_flow(flow_out_path, flow)
+            read_and_warp_points(out_dir, points, flow, cyc)
         if not save_to_stack:
             del img_memmap
     if save_to_stack:
         del img_memmap
-
-
-def parse_cmd_args() -> Path:
-    parser = argparse.ArgumentParser(
-        description="MicroAligner: image registration for large scale microscopy"
-    )
-    parser.add_argument("config", type=Path, help="path to the config yaml file")
-    args = parser.parse_args()
-    reg_config_path = args.config
-    return reg_config_path
 
 
 def run_feature_reg(config: PipelineConfig, target_shape: Shape2D):
@@ -514,6 +558,7 @@ def run_feature_reg(config: PipelineConfig, target_shape: Shape2D):
         output_is_stack,
     )
     save_param(out_dir, tmat_per_cycle, padding_per_cycle, target_shape)
+    transf_points = read_and_transform_points(config.Input.InputPoints, out_dir, tmat_per_cycle, padding_per_cycle)
     if output_is_stack:
         img_paths = {"CycleStack": out_dir / feature_reg_out_file_names["stack"]}
     else:
@@ -522,7 +567,7 @@ def run_feature_reg(config: PipelineConfig, target_shape: Shape2D):
             filename = feature_reg_out_file_names["per_cycle"].format(cyc=cyc)
             img_paths[cyc] = out_dir / filename
     print("Finished\n")
-    return img_paths
+    return img_paths, transf_points
 
 
 def check_input_img_dims_match(img_paths: List[Path]) -> bool:
@@ -539,7 +584,7 @@ def check_input_img_dims_match(img_paths: List[Path]) -> bool:
     return all_match
 
 
-def run_opt_flow_reg(config, img_paths: List[Path], target_shape: Shape2D):
+def run_opt_flow_reg(config, img_paths: List[Path], target_shape: Shape2D, points: Dict[int, pd.DataFrame]):
     input_is_stack = config.Input.PipelineInputType == "CycleStack"
     input_is_stack_builder = config.Input.PipelineInputType == "CycleBuilder"
     output_is_stack = config.Output.SaveOutputToCycleStack
@@ -612,6 +657,7 @@ def run_opt_flow_reg(config, img_paths: List[Path], target_shape: Shape2D):
         output_is_stack,
         use_full_res_img,
         use_dog,
+        points
     )
     print("Finished\n")
     return
@@ -629,6 +675,16 @@ def get_img_path_list(config: PipelineConfig) -> List[Path]:
     return img_paths
 
 
+def parse_cmd_args() -> Path:
+    parser = argparse.ArgumentParser(
+        description="MicroAligner: image registration for large scale microscopy"
+    )
+    parser.add_argument("config", type=Path, help="path to the config yaml file")
+    args = parser.parse_args()
+    reg_config_path = args.config
+    return reg_config_path
+
+
 def main():
     print("Started\n")
     config_path = parse_cmd_args()
@@ -644,10 +700,10 @@ def main():
 
     img_paths = config.Input.InputImagePaths
     if config.RegistrationParameters.FeatureReg is not None:
-        img_paths = run_feature_reg(config, target_shape)
+        img_paths, points = run_feature_reg(config, target_shape)
 
     if config.RegistrationParameters.OptFlowReg is not None:
-        run_opt_flow_reg(config, img_paths, target_shape)
+        run_opt_flow_reg(config, img_paths, target_shape, points)
 
 
 if __name__ == "__main__":

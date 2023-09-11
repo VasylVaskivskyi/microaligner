@@ -94,11 +94,11 @@ def find_features(img: Image, nfeatures_limit: int = 5000) -> Features:
     )
     # default values
     descriptor = cv.xfeatures2d.DAISY_create(
-        radius=21,
-        q_radius=3,
+        radius=15,
+        q_radius=5,
         q_theta=8,
         q_hist=8,
-        norm=cv.xfeatures2d.DAISY_NRM_NONE,
+        norm=cv.xfeatures2d.DAISY_NRM_FULL,
         interpolation=True,
         use_orientation=False,
     )
@@ -127,9 +127,9 @@ def match_features(img1_features: Features, img2_features: Features) -> np.ndarr
         kp2 = img2_features.keypoints
         des2 = img2_features.descriptors
 
-    FLANN_INDEX_KDTREE = 1
-    index_param = dict(algorithm=FLANN_INDEX_KDTREE, trees=8)
-    search_param = dict(checks=50, sorted=True, explore_all_trees=False)
+    #FLANN_INDEX_KDTREE = 1
+    #index_param = dict(algorithm=FLANN_INDEX_KDTREE, trees=8)
+    #search_param = dict(checks=50, sorted=True, explore_all_trees=False)
     # matcher = cv.FlannBasedMatcher(index_param, search_param)
     matcher = cv.FlannBasedMatcher_create()
     matches = matcher.knnMatch(des2, des1, k=2)
@@ -137,7 +137,7 @@ def match_features(img1_features: Features, img2_features: Features) -> np.ndarr
     # Filter out unreliable points
     good = []
     for m, n in matches:
-        if m.distance < 0.5 * n.distance:
+        if m.distance < 0.8 * n.distance:
             good.append(m)
 
     print("    Good matches", len(good), "/", len(matches))
@@ -160,7 +160,7 @@ def match_features(img1_features: Features, img2_features: Features) -> np.ndarr
 
 def find_features_parallelized(tile_list: List[Image]) -> List[Features]:
     n_tiles = len(tile_list)
-    nfeatures_limit_per_tile = min(1000000 // n_tiles, 5000)
+    nfeatures_limit_per_tile = 1000000 // n_tiles
     task = []
     for tile in tile_list:
         task.append(dask.delayed(find_features)(tile, nfeatures_limit_per_tile))

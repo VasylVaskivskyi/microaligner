@@ -112,6 +112,7 @@ class RegParam:
 
 class PipelineInput:
     InputImagePaths: dict
+    InputPoints: dict
     ReferenceCycle: int
     ReferenceChannel: str
     PipelineInputType: str
@@ -181,21 +182,28 @@ class PipelineConfigReader:
             raise ValueError("Input field is incorrect")
 
         check_field_dtype("InputImagePaths", (dict, list), input_dict)
+        check_field_dtype("InputPoints", (dict, list), input_dict)
         check_field_dtype("ReferenceCycle", int, input_dict)
         check_field_dtype("ReferenceChannel", str, input_dict)
 
         check_field_min_max("ReferenceCycle", 1, None, input_dict)
-        path_dict = input_dict["InputImagePaths"]
+        img_path_dict = input_dict["InputImagePaths"]
+        point_path_dict = input_dict["InputPoints"]
 
-        path_dict_type = self.get_path_dict_type(path_dict)
-        input_paths = self.parse_path_dict(path_dict, path_dict_type)
+        img_path_dict_type = self.get_path_dict_type(img_path_dict)
+        point_path_dict_type = self.get_path_dict_type(point_path_dict)
+
+        input_paths = self.parse_path_dict(img_path_dict, img_path_dict_type)
+        input_points = self.parse_path_dict(point_path_dict, point_path_dict_type)
+
         ref_cycle = input_dict["ReferenceCycle"]
         ref_ch = input_dict["ReferenceChannel"]
 
         self.Input.InputImagePaths = input_paths
+        self.Input.InputPoints = input_points
         self.Input.ReferenceCycle = ref_cycle
         self.Input.ReferenceChannel = ref_ch
-        self.Input.PipelineInputType = path_dict_type
+        self.Input.PipelineInputType = img_path_dict_type
 
     def parse_path_dict(self, path_dict, path_dict_type: str):
         proc_path_dict = dict()

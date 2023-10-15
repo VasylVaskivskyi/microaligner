@@ -94,7 +94,7 @@ def find_features(img: Image, nfeatures_limit: int = 5000) -> Features:
     )
     # default values
     descriptor = cv.xfeatures2d.DAISY_create(
-        radius=15,
+        radius=21,
         q_radius=5,
         q_theta=8,
         q_hist=8,
@@ -137,7 +137,7 @@ def match_features(img1_features: Features, img2_features: Features) -> np.ndarr
     # Filter out unreliable points
     good = []
     for m, n in matches:
-        if m.distance < 0.8 * n.distance:
+        if m.distance < 0.9 * n.distance:
             good.append(m)
 
     print("    Good matches", len(good), "/", len(matches))
@@ -160,7 +160,7 @@ def match_features(img1_features: Features, img2_features: Features) -> np.ndarr
 
 def find_features_parallelized(tile_list: List[Image]) -> List[Features]:
     n_tiles = len(tile_list)
-    nfeatures_limit_per_tile = 1000000 // n_tiles
+    nfeatures_limit_per_tile = 5000  #min(1000000 // n_tiles, 5000)
     task = []
     for tile in tile_list:
         task.append(dask.delayed(find_features)(tile, nfeatures_limit_per_tile))

@@ -28,6 +28,8 @@ from ..shared_modules.img_checks import (check_img_dims_match,
                                          check_img_is_2d_grey,
                                          check_img_is_provided)
 from ..shared_modules.similarity_scoring import check_if_higher_similarity
+from ..shared_modules.utils import dog
+
 from .feature_detection import Features
 from .tile_registration import find_features, register_img_pair
 
@@ -69,7 +71,7 @@ class FeatureRegistrator:
         self._ref_pyr_features = []
         for pyr_level in self._ref_img_pyr:
             self._ref_pyr_features.append(
-                find_features(self.dog(pyr_level, self.use_dog), self.tile_size)
+                find_features(dog(pyr_level, self.use_dog), self.tile_size)
             )
 
     def register(self, reuse_ref_img: bool = False) -> TMat:
@@ -171,9 +173,9 @@ class FeatureRegistrator:
             mov_img_aligned, est_t_mat_pyr = self._align_imgs(ref_features, aligned_img)
 
             is_more_similar = check_if_higher_similarity(
-                self.dog(ref_img,         self.use_dog),
-                self.dog(mov_img_aligned, self.use_dog),
-                self.dog(aligned_img,     self.use_dog),
+                dog(ref_img,         self.use_dog),
+                dog(mov_img_aligned, self.use_dog),
+                dog(aligned_img,     self.use_dog),
                 self.tile_size,
             )
             is_valid_transform = self._check_if_valid_transform(
@@ -195,10 +197,10 @@ class FeatureRegistrator:
         self, ref: Union[Image, Features], mov_img: Image
     ) -> Tuple[Image, np.ndarray]:
         if not isinstance(ref, Features):
-            ref_features = find_features(self.dog(ref, self.use_dog), self.tile_size)
+            ref_features = find_features(dog(ref, self.use_dog), self.tile_size)
         else:
             ref_features = ref
-        mov_features = find_features(self.dog(mov_img, self.use_dog), self.tile_size)
+        mov_features = find_features(dog(mov_img, self.use_dog), self.tile_size)
         transform_mat = register_img_pair(ref_features, mov_features)
         if np.equal(transform_mat, np.eye(2, 3)).all():
             return mov_img, np.eye(2, 3)
@@ -276,37 +278,3 @@ class FeatureRegistrator:
             return False
         else:
             return True
-
-    def get_dog_sigmas(self, pyr_factor: int) -> Tuple[int, int]:
-        if pyr_factor > 16:
-            return 1, 2
-        else:
-            sigmas = {1: (5, 9), 2: (4, 7), 4: (3, 5), 8: (2, 3), 16: (1, 2)}
-        return sigmas[pyr_factor]
-
-    def dog(
-        self, img: Image, use_it: bool, low_sigma: int = 5, high_sigma: int = 9
-    ) -> Image:
-        """Difference of Gaussian filters"""
-        if not use_it:
-            return img
-        else:
-            if img.max() == 0:
-                return img
-            else:
-                # low_sigma, high_sigma = self.get_dog_sigmas(self._this_pyr_factor)
-
-                fimg = cv.normalize(img, None, 0, 1, cv.NORM_MINMAX, cv.CV_32F)
-                kernel = (low_sigma * 4 * 2 + 1, low_sigma * 4 * 2 + 1)  # as in opencv
-                ls = cv.GaussianBlur(
-                    fimg, kernel, sigmaX=low_sigma, dst=None, sigmaY=low_sigma
-                )
-                hs = cv.GaussianBlur(
-                    fimg, kernel, sigmaX=high_sigma, dst=None, sigmaY=high_sigma
-                )
-                diff_of_gaussians = hs - ls
-                del hs, ls
-                diff_of_gaussians = cv.normalize(
-                    diff_of_gaussians, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U
-                )
-                return diff_of_gaussians

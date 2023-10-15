@@ -121,3 +121,28 @@ def set_number_of_dask_workers(n_workers: int = 0):
         dask.config.set({"scheduler": "synchronous"})
     else:
         dask.config.set({"num_workers": n_workers, "scheduler": "processes"})
+
+
+
+def dog(img: Image, use_it: bool, low_sigma: int = 2, high_sigma: int = 3) -> Image:
+        """Difference of Gaussian filters"""
+        if not use_it:
+            return img
+        else:
+            if img.max() == 0:
+                return img
+            else:
+                fimg = cv.normalize(img, None, 0, 1, cv.NORM_MINMAX, cv.CV_32F)
+                kernel = (low_sigma * 4 * 2 + 1, low_sigma * 4 * 2 + 1)  # as in opencv
+                ls = cv.GaussianBlur(
+                    fimg, kernel, sigmaX=low_sigma, dst=None, sigmaY=low_sigma
+                )
+                hs = cv.GaussianBlur(
+                    fimg, kernel, sigmaX=high_sigma, dst=None, sigmaY=high_sigma
+                )
+                diff_of_gaussians = hs - ls
+                del hs, ls
+                diff_of_gaussians = cv.normalize(
+                    diff_of_gaussians, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U
+                )
+                return diff_of_gaussians

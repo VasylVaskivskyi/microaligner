@@ -129,7 +129,12 @@ def move_points_flow(point_loc_arr: np.ndarray, flow: np.ndarray) -> np.ndarray:
     for p in range(0, point_loc_arr.shape[0]):
         px, py = point_loc_arr[p, :]
         # x and y reversed here VVV
-        dpy, dpx = -flow[round2int(py), round2int(px), :]
+        try:
+            dpy, dpx = -flow[round2int(py), round2int(px), :]
+        except pd.errors.IndexingError:
+            print("Point out range ", px, py)
+            dpy = 0
+            dpx = 0
         new_loc[p, :] = round2int(px + dpx), round2int(dpy + py)
     return new_loc
 

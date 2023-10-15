@@ -30,6 +30,7 @@ from ..shared_modules.img_checks import (check_img_dims_match,
 from ..shared_modules.similarity_scoring import check_if_higher_similarity
 from ..shared_modules.slicer import split_image_into_tiles_of_size
 from ..shared_modules.stitcher import stitch_image
+from ..shared_modules.utils import dog
 from .flow_calc import TileFlowCalc
 from .warper import Warper
 
@@ -59,6 +60,7 @@ class OptFlowRegistrator:
         self.use_dog = False
         self._warper = Warper()
         self._tile_flow_calc = TileFlowCalc()
+        self._this_pyr_factor = 1
 
     @property
     def ref_img(self) -> Image:
@@ -104,6 +106,7 @@ class OptFlowRegistrator:
         # here lvl means a pyramid level starting from the smallest part of the pyramid
         num_lvl = len(factors)
         for lvl, factor in enumerate(factors):
+            self._this_pyr_factor = factor
             print("Pyramid factor", factor)
             mov_this_lvl = mov_pyr[lvl].copy()
 
@@ -117,8 +120,8 @@ class OptFlowRegistrator:
                 self._tile_flow_calc.prev_flow = m_flow  #  use previous flow
 
                 # mov_this_lvl = self.warp_with_flow(mov_this_lvl, m_flow)
-            self._tile_flow_calc.ref_img = self.dog(ref_pyr[lvl], self.use_dog)
-            self._tile_flow_calc.mov_img = self.dog(mov_this_lvl, self.use_dog)
+            self._tile_flow_calc.ref_img = dog(ref_pyr[lvl], self.use_dog)
+            self._tile_flow_calc.mov_img = dog(mov_this_lvl, self.use_dog)
 
             this_flow = self._tile_flow_calc.calc_flow()
 
@@ -128,9 +131,9 @@ class OptFlowRegistrator:
             gc.collect()
             # this_flow = self.calc_flow(ref_pyr[lvl], mov_this_lvl, 1, 0, 51)
             is_higher_similarity = check_if_higher_similarity(
-                self.dog(ref_pyr[lvl], self.use_dog),
-                self.dog(mov_this_lvl, self.use_dog),
-                self.dog(mov_pyr[lvl], self.use_dog),
+                dog(ref_pyr[lvl], self.use_dog),
+                dog(mov_this_lvl, self.use_dog),
+                dog(mov_pyr[lvl], self.use_dog),
                 self.tile_size,
             )
 
@@ -241,37 +244,3 @@ class OptFlowRegistrator:
             for i in range(1, len(flow_list)):
                 m_flow = self._merge_flow_in_tiles(m_flow, flow_list[i])
         return m_flow
-
-    def get_dog_sigmas(self, pyr_factor: int) -> Tuple[int, int]:
-        if pyr_factor > 16:
-            return 1, 2
-        else:
-            sigmas = {1: (5, 9), 2: (4, 7), 4: (3, 5), 8: (2, 3), 16: (1, 2)}
-        return sigmas[pyr_factor]
-
-    def dog(
-        self, img: Image, use_it: bool, low_sigma: int = 5, high_sigma: int = 9
-    ) -> Image:
-        """Difference of Gaussian filters"""
-        if not use_it:
-            return img
-        else:
-            if img.max() == 0:
-                return img
-            else:
-                # low_sigma, high_sigma = self.get_dog_sigmas(self._this_pyr_factor)
-
-                fimg = cv.normalize(img, None, 0, 1, cv.NORM_MINMAX, cv.CV_32F)
-                kernel = (low_sigma * 4 * 2 + 1, low_sigma * 4 * 2 + 1)  # as in opencv
-                ls = cv.GaussianBlur(
-                    fimg, kernel, sigmaX=low_sigma, dst=None, sigmaY=low_sigma
-                )
-                hs = cv.GaussianBlur(
-                    fimg, kernel, sigmaX=high_sigma, dst=None, sigmaY=high_sigma
-                )
-                diff_of_gaussians = hs - ls
-                del hs, ls
-                diff_of_gaussians = cv.normalize(
-                    diff_of_gaussians, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U
-                )
-                return diff_of_gaussians

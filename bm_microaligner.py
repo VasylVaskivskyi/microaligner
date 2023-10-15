@@ -8,6 +8,7 @@ import yaml
 import numpy as np
 import tifffile as tif
 import cv2 as cv
+from skimage.exposure import match_histograms
 
 osj = os.path.join
 
@@ -46,16 +47,16 @@ class BmMicroaligner(ImRegBenchmark):
         """
         logging.debug(".. converting to grey tif")
 
-        def lv(img) -> float:
-            return np.var(cv.Laplacian(img, cv.CV_64F, ksize=21))
+        # def lv(img) -> float:
+        #     return np.var(cv.Laplacian(img, cv.CV_64F, ksize=21))
 
         def get_most_var(img_bgr):
-            lv_img_bgr = [
-                lv(img_bgr[:, :, 0]),
-                lv(img_bgr[:, :, 1]),
-                lv(img_bgr[:, :, 2]),
+            var_img_bgr = [
+                np.var(img_bgr[:, :, 0]),
+                np.var(img_bgr[:, :, 1]),
+                np.var(img_bgr[:, :, 2]),
             ]
-            max_var = np.argmax(lv_img_bgr)
+            max_var = np.argmax(var_img_bgr)
             res_img = cv.normalize(img_bgr[:, :, max_var], None, 0, 255, cv.NORM_MINMAX, cv.CV_8U)
             return res_img
 
@@ -78,6 +79,13 @@ class BmMicroaligner(ImRegBenchmark):
         self.ref_out_path = osj(out_dir, ref_name + ".tif")
         self.mov_out_path = osj(out_dir, mov_name + ".tif")
 
+        print("Doing HEQ")
+        if ref_grey.var() > mov_grey.var():
+            mov_grey = match_histograms(mov_grey, ref_grey)
+        else:
+            ref_grey = match_histograms(ref_grey, mov_grey)
+
+        print("Saving greyscale")
         tif.imwrite(self.ref_out_path, ref_grey, photometric="minisblack")
         tif.imwrite(self.mov_out_path, mov_grey, photometric="minisblack")
         return item
@@ -108,22 +116,22 @@ class BmMicroaligner(ImRegBenchmark):
 
             "RegistrationParameters": {
                 "FeatureReg": {
-                    "NumberPyramidLevels": 2,
-                    "NumberIterationsPerLevel": 5,
-                    "TileSize": 500,
+                    "NumberPyramidLevels": 4,
+                    "NumberIterationsPerLevel": 3,
+                    "TileSize": 1000,
                     "Overlap": 100,
-                    "NumberOfWorkers": 0,
+                    "NumberOfWorkers": 32,
                     "UseFullResImage": True,
-                    "UseDOG": True,
+                    "UseDOG": False,
                 },
                 "OptFlowReg": {
-                    "NumberPyramidLevels": 3,
-                    "NumberIterationsPerLevel": 5,
-                    "TileSize": 500,
+                    "NumberPyramidLevels": 4,
+                    "NumberIterationsPerLevel": 3,
+                    "TileSize": 1000,
                     "Overlap": 100,
-                    "NumberOfWorkers": 0,
+                    "NumberOfWorkers": 32,
                     "UseFullResImage": True,
-                    "UseDOG": True,
+                    "UseDOG": False,
                 }
             }
         }
